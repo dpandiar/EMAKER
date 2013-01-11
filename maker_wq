@@ -430,10 +430,8 @@ sub SubmitTask {
 			
 					@fields = split(/\//, $file);
 					my $newfile = $fields[scalar(@fields) - 1];
-					if ($i == 1) {
-						print STDERR "Specifying requirement $file with remote name $newfile\n";  
-						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
-					}
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
 					if ($#fields > 1) {
 						print STDERR "Rewriting $file to $newfile\n"; 
 						$ests[$j] = $newfile;  
@@ -455,9 +453,8 @@ sub SubmitTask {
 					@fields = split(/\//, $file); 
 
 					my $newfile = $fields[scalar(@fields) - 1]; 
-					if ($i == 1){ 
-						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					}
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 					if ($#fields > 1){
 						$proteins[$j] = $newfile; 
 					}
@@ -477,10 +474,8 @@ sub SubmitTask {
 		
 					@fields = split(/\//, $file); 
 					my $newfile = $fields[scalar(@fields) - 1]; 
-					if ($i == 1){ 
-						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					}
-					
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 					if ($#fields > 1){
 						$d[$j] = $newfile; 
 					}
@@ -500,10 +495,8 @@ sub SubmitTask {
 			
 					@fields = split(/\//, $file); 
 					my $newfile = $fields[scalar(@fields) - 1]; 
-					if ($i == 1){
-						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					}
-					
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 					if ($#fields > 1){
 						$r[$j] = $newfile; 
 					}
@@ -522,9 +515,8 @@ sub SubmitTask {
 					}
 					@fields = split(/\//, $file); 
 					my $newfile = $fields[scalar(@fields) - 1]; 
-					if ($i == 1){
-						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					}
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 					
 					if ($#fields > 1){
 						$a[$j] = $newfile; 
@@ -543,9 +535,8 @@ sub SubmitTask {
 				my $newfile = $fields[scalar(@fields) - 1]; 
 				if(-e $file){
 					$file = abs_path($file); 
-					if ($i == 1){
-						work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
-					}
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
 				}
 				$tier->CTL_OPT->{$input} = $newfile; 
 			}
@@ -559,9 +550,8 @@ sub SubmitTask {
 				my $newfile = $fields[scalar(@fields) - 1]; 
 				if(-e $file){
 					$file = abs_path($file); 
-					if ($i == 1){
-						work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
-					}
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
 					$tier->CTL_OPT->{$x} = "./$newfile"; 
 				}
 		
@@ -590,9 +580,8 @@ sub SubmitTask {
 						my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
 					}
 					print STDERR "Specifying file: $prefix with remote name $v\n";  
-					if ($i == 1){
-						work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
-					}
+					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+					work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 					print STDERR "Rewriting $file to $folder/$newfile\n"; 
 					$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
 		
@@ -653,9 +642,8 @@ sub SubmitTask {
 			###END - specifying output
 			
 			print "Specifying tag $counter \n"; 
-			if ($i == 1){
-				work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-			}
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 			$counter++; 
 		}
 		
