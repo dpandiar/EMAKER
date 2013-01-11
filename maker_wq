@@ -1,0 +1,1124 @@
+#!/usr/bin/env perl
+
+my $maker_time = 0; 
+my $wq_time = 0; 
+my $transfer_time = 0; 
+my $wait_time = 0; 
+my $process_time = 0; 
+my $t0 = 0; 
+my $t1 = 0;
+
+$t0 = time;  
+eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
+
+use strict "vars";
+use strict "refs";
+use warnings;
+use Time::HiRes qw(gettimeofday); 
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../perl/lib";
+use vars qw($RANK $LOG $CMD_ARGS);
+
+
+BEGIN{
+   if (not ($ENV{CGL_SO_SOURCE})) {
+      $ENV{CGL_SO_SOURCE} = "$FindBin::Bin/../lib/CGL/so.obo";
+   }
+   if (not ($ENV{CGL_GO_SOURCE})) {
+      $ENV{CGL_GO_SOURCE} = "$FindBin::Bin/../lib/CGL/gene_ontology.obo"
+   }
+   
+   $CMD_ARGS = join(' ', @ARGV);
+   
+   #what to do on ^C
+   $SIG{'INT'} = sub {
+      print STDERR "\n\nMaker aborted by user!!\n\n" unless($main::qq);
+      exit (1);
+   };    
+   
+   #supress warnings from storable module
+   $SIG{'__WARN__'} = sub {
+      warn $_[0] if ( $_[0] !~ /Not a CODE reference/ &&
+		      $_[0] !~ /Can\'t store item / &&
+		      $_[0] !~ /Find\:\:skip_pattern|File\/Find\.pm/
+		    );
+   };
+
+   #output to log file of seq that caused rank to die
+   $SIG{'__DIE__'} =
+   sub {
+      if (defined ($LOG) && defined $_[0]) {
+	 my $die_count = $LOG->get_die_count();
+	 $die_count++;
+	 
+	 $LOG->add_entry("DIED","RANK",$RANK);
+	 $LOG->add_entry("DIED","COUNT",$die_count);
+      }
+
+      die $_[0]."\n".
+	  "FATAL ERROR\n";
+   };
+}
+
+use Cwd;
+use Cwd qw(abs_path); 
+use FileHandle;
+use File::Path;
+use Getopt::Long qw(:config no_ignore_case);
+use File::Temp qw(tempfile tempdir);
+#use Bio::DB::Fasta;
+use GI;
+#use Dumper::GFF::GFFV3;
+use Iterator::Any;
+use Iterator::Fasta;
+use Iterator::GFF3;
+use Fasta;
+use FastaChunker;
+use maker::auto_annotator;
+use cluster;
+use repeat_mask_seq;
+use runlog;
+use ds_utility;
+use GFFDB;
+use Error qw(:try);
+use Error::Simple;
+use Process::MpiChunk;
+use Process::MpiTiers;
+use Proc::Signal;
+
+$| = 1;
+
+my $usage = "
+Usage:
+     maker [options] <maker_opts> <maker_bopts> <maker_exe>
+
+     Maker is a program that produces gene annotations in GFF3 file format using
+     evidence such as EST alignments and protein homology.  Maker can be used to
+     produce gene annotations for new genomes as well as update annoations from
+     existing genome databases.
+
+     The three input arguments are user control files that specify how maker
+     should behave. All options for maker should be set in the control files,
+     but a few can also be set on the command line. Command line options provide
+     a convenient machanism to override commonly altered control file values.
+
+     Input files listed in the control options files must be in fasta format.
+     unless otherwise specified. Please see maker documentation to learn more
+     about control file  configuration.  Maker will automatically try and locate
+     the user control files in the current working directory if these arguments
+     are not supplied when initializing maker.
+
+     It is important to note that maker does not try and recalculated data that
+     it has already calculated.  For example, if you run an analysis twice on
+     the same dataset file you will notice that maker does not rerun any of the
+     blast analyses, but instead uses the blast analyses stored from the
+     previous run.  To force maker to rerun all analyses, use the -f flag.
+
+
+Options:
+
+     -genome|g <filename> Specify the genome file.
+
+     -predictor|p <type>  Selects the predictor(s) to use when building
+                          annotations.  Defines a pool of gene models for
+                          annotation selection.
+
+                          types: snap
+                                 augustus
+                                 fgenesh
+                                 genemark
+                                 est2genome (Uses EST's directly)
+                                 protein2genome (For Prokaryotic annotation only)
+                                 model_gff (Pass through GFF3 annotations)
+                                 pred_gff (Uses passed through GFF3 predictions)
+
+                          Use a ',' to seperate types (nospaces)
+                          i.e. -predictor=snap,augustus,fgenesh
+
+     -RM_off|R           Turns all repeat masking off.
+
+     -datastore/         Forcably turn on/off MAKER's use of a two deep datastore
+      nodatastore        directory structure for output.  By default this option
+                         turns on whenever there are more the 1,000 contigs in
+                         the input genome fasta file.
+
+     -base    <string>   Set the base name MAKER uses to save output files.
+                         MAKER uses the input genome file name by default.
+
+     -retry|r <integer>  Rerun failed contigs up to the specified count.
+
+     -cpus|c  <integer>  Tells how many cpus to use for BLAST analysis.
+
+     -force|f            Forces maker to delete old files before running again.
+                         This will require all blast analyses to be re-run.
+
+     -again|a            Caculate all annotations and output files again even if
+                         no settings have changed. Does not delete old analyses.
+
+     -evaluate|e         Run Evaluator on final annotations (under development).
+
+     -fast               Causes MAKER to skip most clustering and analysis.
+                         A quick way to align evidence.  You then must re-run
+                         MAKER to produce full GFF3 output and annotations.
+
+     -quiet|q            Silences most of maker's status messages.
+
+     -qq                 Really quiet. Silences everything but major errors.
+
+     -CTL                Generate empty control files in the current directory.
+
+     -wq 		 Run MAKER on Work Queue
+
+     -help|?             Prints this usage statement.
+
+Work Queue Options
+
+     -port <integer>     Sets the port for work_queue to listen on (default: 9135)
+ 
+     -fa   <integer>     Sets the work_queue fast abort option with the given multiplier. 
+
+     -N <project>	 Sets the project name to <project>.
+
+     -k <integer>	 Sets the number of sequences per task for remote computation. 
+ 
+     -d <level>  	 Sets the debug flag for Work Queue and the CCTOOLS package. For all debugging output, try 'all'.
+
+
+";
+
+#-------------------------------------------------------------------------------
+#------------------------------------ MAIN -------------------------------------
+#-------------------------------------------------------------------------------
+
+
+#---global variables
+my %OPT;
+my $rank = 0;
+my $size = 1;
+$RANK = $rank;
+#\$OPT{size} = 1;
+ 
+#---Process options on the command line 
+try{
+    GetOptions("RM_off|R" => \$OPT{R},
+	       "force|f" => \$OPT{force},
+	       "genome|g=s" => \$OPT{genome},
+	       "cpus|c=i" => \$OPT{cpus},
+	       "predictor=s" =>\$OPT{predictor},
+	       "retry=i" =>\$OPT{retry},
+	       "evaluate" =>\$OPT{evaluate},
+	       "again|a" =>\$OPT{again},
+	       "quiet|q" =>\$main::quiet,
+	       "qq"    =>\$main::qq,
+	       "check" =>\$OPT{check},
+	       "base=s" =>\$OPT{out_name},
+	       "datastore!" =>\$OPT{datastore},
+	       "fast" =>\$main::fast,
+	       "dtmp" =>\$main::dtmp,
+	       "MWAS=s" =>sub {exec("$FindBin::Bin/../MWAS/bin/mwas_server $_[1]")},
+	       "CTL" => sub {GI::generate_control_files(); exit(0);},
+	       "wq" => \$OPT{wq}, 
+	       "help|?" => sub {print $usage; exit(0)},
+	       "port=i" => \$OPT{port},
+	       "fa=i" => \$OPT{fast_abort},
+	       "N=s" => \$OPT{project},
+	       "d=s" => \$OPT{debug},
+ 	       "k=i" => \$OPT{size}
+	       );
+
+    $main::quiet = 1 if($main::qq);
+}
+catch Error::Simple with{
+    my $E = shift;
+    
+    print STDERR $E->{-text};
+    die "\n\nMaker failed parsing command line options!!\n\n" if();
+};
+
+if(!defined $OPT{size}){
+	$OPT{size} = 1; 
+}
+
+#varibles that are persistent outside of try
+my %CTL_OPT;
+my $iterator;
+my $DS_CTL;
+my $GFF_DB;
+my $build;
+my @failed;
+
+try{
+    #get arguments off the command line
+    my @ctlfiles = @ARGV;
+    
+    if (not @ctlfiles) {
+	if (-e "maker_opts.ctl" &&
+	    -e "maker_bopts.ctl" &&
+	    -e "maker_exe.ctl"
+	    ) {
+	    
+	    @ctlfiles = ("maker_opts.ctl",
+			 "maker_bopts.ctl",
+			 "maker_exe.ctl"
+			 );
+	}
+	else {
+	    print STDERR  "ERROR: Control files not found\n";
+	    print $usage;
+	    exit(0);
+	}
+    }
+    
+    #--Control file processing
+    
+    #set up control options from control files
+    %CTL_OPT = GI::load_control_files(\@ctlfiles, \%OPT, $size);
+    
+    #--open datastructure controller
+    #This is where the output directory must be set
+    $DS_CTL = ds_utility->new(\%CTL_OPT);
+    
+    #--set up gff database
+    $GFF_DB = new GFFDB(\%CTL_OPT);
+    $build = $GFF_DB->next_build;
+    
+    #---load genome multifasta/GFF3 file
+    $iterator = new Iterator::Any( -fasta => $CTL_OPT{'genome'},
+				   -gff => $CTL_OPT{'genome_gff'},
+				   );
+}
+catch Error::Simple with{
+    my $E = shift;
+    print STDERR $E->{-text};
+    my $code = 2;
+    $code = $E->{-value} if (defined($E->{-value}));
+    
+    exit($code);
+};
+$t1 = time; 
+$maker_time += ($t1 - $t0); 
+
+if($OPT{wq}){
+$t0 = time; 
+## beginning of ztm's code, above is (mostly) stock
+
+use Storable qw(nstore retrieve);
+#use FindBin;                 # locate this script
+#use lib "/afs/crc.nd.edu/group/NDBL/athrash1/cctools/lib/perl5/site_perl/5.10.1/";  # use the parent directory
+use work_queue;
+use Data::Dumper;
+
+my $bird = 0;
+my $wkDirPrefix;
+my $initialSubmit = 10;
+my $tierLimit = -1; #100;
+
+## @INC is modified at top of script
+my $command = "";
+
+$wkDirPrefix = cwd();
+chomp($wkDirPrefix); 
+$wkDirPrefix =~ s/\n//g;
+$wkDirPrefix .= "/";
+
+$command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
+./maker_wq_worker";
+#$command .= "find -name \"*.tar\" -exec tar -x --skip-old-files -f {} \\\;
+#./maker_wq_worker";
+
+my $port = "9155";
+if(defined($OPT{"port"}))
+{
+	$port = $OPT{"port"}; 
+} 
+
+my $queue = work_queuec::work_queue_create($port);
+if(defined($OPT{"debug"})){
+	work_queuec::cctools_debug_flags_set($OPT{"debug"}); 
+	print time." :: Work Queue set debug flags \n";
+}
+
+if(defined($queue)){
+	print time." :: Work Queue Creation :: listening on port $port \n";}
+else{
+	print "Failed to create Work Queue on port $port \n"; 
+	exit(0);
+}
+
+my $multiplier = -1;
+if(defined($OPT{"fast_abort"})) {
+	$multiplier = $OPT{"fast_abort"}; 
+	my $fa = work_queuec::work_queue_activate_fast_abort($queue, $multiplier); 
+}
+
+if(defined($OPT{"project"})) {
+	work_queuec::work_queue_specify_name($queue, $OPT{"project"});
+	work_queuec::work_queue_specify_master_mode($queue, 1);
+
+}
+
+my $tier;
+my $fasta;
+my $highestTier;
+my $tierCtr = 0;
+my $tiersTerm = 0;
+my %seq_ids = {}; 
+my $datastore = $DS_CTL->{root}; 
+
+if(!-e $datastore) {
+	`mkdir $datastore`;
+}
+
+sub SubmitTask {
+	$t0 = time; 
+	my($counter) = @_;
+	$t1 = time; 
+	$wq_time += ($t1 - $t0); 
+
+	if($OPT{size} > 1){
+		$t0 = time; 
+
+		my $t = ""; 
+		for(my $i = 1; $i <= $OPT{size}; $i++) {
+			my $val = $counter+$i-1;
+			if (! -e "$val\_todo.tier"){next;}
+			$t .= "$val "; 
+		}
+		if($t eq ""){
+			return 0; 
+		}
+		print "Creating task $counter\n"; 
+		my $task = work_queuec::work_queue_task_create("$command $t"); 
+		print "Specifying the worker executable maker_wq_worker \n";
+		work_queuec::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
+		
+		###BEGIN - specifying the MAKER library files 
+		my $lib = "$FindBin::Bin";
+		$lib =~ s/bin/lib/; 
+		if(! -e "$wkDirPrefix/lib.tar"){
+			print "Tarring lib files\n";
+			`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
+		}
+		work_queuec::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
+		###END - specifying the MAKER library files 
+
+		for(my $i = 1; $i <= $OPT{size}; $i++){
+		
+			my $inFile = $counter."_todo.tier";
+			if (! -e $inFile){next;} 
+			### ztm :: new task, set its I/O parms
+			print "Specifying input $wkDirPrefix$inFile\n";
+			work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+
+			###BEGIN - specifying the input files 
+			#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
+			print "Specifying all of the necessary files to run the workers locally\n"; 
+			#$tier holds all of the information for the task; 
+			my $tier = ${retrieve($inFile)};
+			if (defined $tier->CTL_OPT->{e_db}){
+				my @ests = @{$tier->CTL_OPT->{e_db}};
+				for(my $j = 0; $j < scalar(@ests); $j++){
+					my $file = $ests[$j]; 
+					print STDERR "EST file: $file\n"; 
+					my @fields = split(/\//, $file);
+					if ($#fields > 1){
+						$file = abs_path($file); 
+					}
+			
+					@fields = split(/\//, $file);
+					my $newfile = $fields[scalar(@fields) - 1];
+					if ($i == 1) {
+						print STDERR "Specifying requirement $file with remote name $newfile\n";  
+						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+					}
+					if ($#fields > 1) {
+						print STDERR "Rewriting $file to $newfile\n"; 
+						$ests[$j] = $newfile;  
+					}
+				}
+				$tier->CTL_OPT->{e_db} = \@ests;
+			}
+		
+			if (defined $tier->CTL_OPT->{p_db}){ 
+				my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
+				for(my $j = 0; $j < scalar(@proteins); $j++){
+					my $file = $proteins[$j];
+					my @fields = split(/\//, $file);
+
+					if ($#fields > 1){
+						$file = abs_path($file); 
+					}
+			
+					@fields = split(/\//, $file); 
+
+					my $newfile = $fields[scalar(@fields) - 1]; 
+					if ($i == 1){ 
+						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+					}
+					if ($#fields > 1){
+						$proteins[$j] = $newfile; 
+					}
+				}
+				$tier->CTL_OPT->{p_db} = \@proteins; 
+			}
+		
+			if (defined $tier->CTL_OPT->{d_db}){
+				my @d = @{$tier->CTL_OPT->{d_db}}; 	
+				for(my $j = 0; $j < scalar(@d); $j++){
+					my $file = $d[$j]; 
+					my @fields = split(/\//, $file);
+
+					if ($#fields > 1){
+						$file = abs_path($file); 
+					}
+		
+					@fields = split(/\//, $file); 
+					my $newfile = $fields[scalar(@fields) - 1]; 
+					if ($i == 1){ 
+						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+					}
+					
+					if ($#fields > 1){
+						$d[$j] = $newfile; 
+					}
+				}
+				$tier->CTL_OPT->{d_db} = \@d; 
+			}
+		
+			if (defined $tier->CTL_OPT->{r_db}){
+				my @r = @{$tier->CTL_OPT->{r_db}}; 	
+				for(my $j = 0; $j < scalar(@r); $j++){
+					my $file = $r[$j]; 
+					my @fields = split(/\//, $file);
+
+					if ($#fields > 1){
+						$file = abs_path($file); 
+					}
+			
+					@fields = split(/\//, $file); 
+					my $newfile = $fields[scalar(@fields) - 1]; 
+					if ($i == 1){
+						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+					}
+					
+					if ($#fields > 1){
+						$r[$j] = $newfile; 
+					}
+				}
+				$tier->CTL_OPT->{r_db} = \@r; 
+			}
+		
+			if (defined $tier->CTL_OPT->{a_db}){
+				my @a = @{$tier->CTL_OPT->{a_db}}; 	
+				for(my $j = 0; $j < scalar(@a); $j++){
+					my $file = $a[$j];
+					my @fields = split(/\//, $file);
+
+					if ($#fields > 1){
+						$file = abs_path($file); 
+					}
+					@fields = split(/\//, $file); 
+					my $newfile = $fields[scalar(@fields) - 1]; 
+					if ($i == 1){
+						work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+					}
+					
+					if ($#fields > 1){
+						$a[$j] = $newfile; 
+					}
+				}
+				$tier->CTL_OPT->{a_db} = \@a; 
+			}
+		
+			#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
+			#instead we'll just transfer the files and let each worker index them if they'd like
+			my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
+			foreach my $input (@inputs){
+				if (! defined $tier->CTL_OPT->{$input}){next;}
+				my $file = $tier->CTL_OPT->{$input}; 
+				my @fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				if(-e $file){
+					$file = abs_path($file); 
+					if ($i == 1){
+						work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+					}
+				}
+				$tier->CTL_OPT->{$input} = $newfile; 
+			}
+			###END - specifying input variables 
+		
+			###BEGIN - transfer executables to the worker
+			my @files = ('snaphmm',  'SEEN_file', 'rmlib');
+			foreach my $x (@files){ 
+				my $file = $tier->CTL_OPT->{$x}; 
+				my @fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				if(-e $file){
+					$file = abs_path($file); 
+					if ($i == 1){
+						work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+					}
+					$tier->CTL_OPT->{$x} = "./$newfile"; 
+				}
+		
+			}	 
+			
+			my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+			foreach my $v (@execs){
+				my $file = $tier->CTL_OPT->{$v}; 
+				if (! -e $file){
+					next;
+				}
+				print STDERR "File: $file\n"; 
+				$file = abs_path($file); 
+				print STDERR "Abs_path: $file\n"; 
+		
+				my @fields = split(/\//, $file); 
+				my $prefix = ""; 
+				for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
+					$prefix .= "/".$fields[$j];
+				}
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				my $folder = $fields[scalar(@fields) - 2]; 
+				if(-e $file){
+					if (! -e "$v.tar"){
+						print STDERR "Running tar -cf $v.tar $prefix\n"; 
+						my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+					}
+					print STDERR "Specifying file: $prefix with remote name $v\n";  
+					if ($i == 1){
+						work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+					}
+					print STDERR "Rewriting $file to $folder/$newfile\n"; 
+					$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
+		
+				}
+			}
+			###END - transfer executables to the worker
+		
+			###BEGIN - changing paths to force the workers to run things in the local directory 
+			#hopefully we can make the log file reside on the remote machine
+			$tier->CTL_OPT->{out_name} = "."; 
+			$tier->CTL_OPT->{out_base} = "."; 
+			$tier->CTL_OPT->{the_void} = ".";
+			my $file = $tier->DS_CTL->{log}; 
+			my @fields = split(/\//, $file);
+			$file = $fields[scalar(@fields) - 1]; 
+			$tier->DS_CTL->{log} = "./$file"; 
+			my $root = $tier->DS_CTL->{root}; 
+			#print "Root: $root\n"; 
+			$tier->DS_CTL->{root} = "./"; 
+			$tier->DS_CTL->{ds_object}->{_root} = "./"; 
+			$tier->{the_void} = "."; 
+			$tier->CTL_OPT->{CWD} = ".";  
+			$tier->GFF_DB->{dbfile} = "./";
+			$tier->CTL_OPT->{_TMP} = "./";  
+			###END - changing paths
+		
+			#store the modified variables to the tier file that will be transmitted to the workers	
+			nstore \$tier, ($inFile);
+		
+			###BEGIN - specifying output
+			#need to know the remote directory name, this is generated from the sequence header
+			if(!exists($tier->{VARS}->{fasta})){
+				print "Fasta doesn't exist\n"; 
+			}
+			my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
+			my $q_def = Fasta::getDef(\$fasta); #Get fasta header
+			my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
+			my $newfile = $root."/$seq_id";
+			print "Specifying output: $seq_id, $newfile\n";  
+			
+			my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
+			if ($ds_flag){
+				use Digest::MD5 qw(md5_hex);
+		
+				my $dir = "";#Datastore::MD5::id_to_dir($seq_id);
+				my($digest) = uc md5_hex($seq_id); # the hex string, uppercased
+				for(my $j = 0; $j < 2; $j++){
+					$dir .= substr($digest, $i*2, 2) ."/";
+				}
+				$dir .= $seq_id . "/";
+				print "Directory from MD5 = $dir, from $seq_id\n";  
+				work_queuec::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
+			}
+			else {
+				work_queuec::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
+			}
+			$seq_ids{$seq_id} = 1; 
+			###END - specifying output
+			
+			print "Specifying tag $counter \n"; 
+			if ($i == 1){
+				work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
+			}
+			$counter++; 
+		}
+		
+		$t1 = time; 
+		$wq_time += ($t1 - $t0); 
+		print "Created task with command: $command and counter $counter, $t\n";
+		work_queuec::work_queue_submit($queue, $task);
+		print "Task submitted\n"; 
+		return 1;
+	} else {
+		$t0 = time; 	
+		my $inFile = $counter."_todo.tier";
+		
+		### ztm :: new task, set its I/O parms
+		print "Creating task $counter\n"; 
+		my $task = work_queuec::work_queue_task_create("$command $counter"); 
+		print "Specifying input $wkDirPrefix$inFile\n";
+		work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+
+		print "Specifying the worker executable maker_wq_worker \n";
+
+		work_queuec::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
+
+		###BEGIN - specifying the MAKER library files 
+		print "Specifying library files\n"; 
+		my $lib = "$FindBin::Bin";
+		$lib =~ s/bin/lib/; 
+		if(! -e "$wkDirPrefix/lib.tar"){
+			print "Tarring lib/ \n"; 
+			`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
+		}
+		work_queuec::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
+		###END - specifying the MAKER library files 
+
+		###BEGIN - specifying the input files 
+		#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
+		print "Specifying all of the necessary files to run the workers locally\n"; 
+		#$tier holds all of the information for the task; 
+		my $tier = ${retrieve($inFile)};
+		if (defined $tier->CTL_OPT->{e_db}){
+			my @ests = @{$tier->CTL_OPT->{e_db}};
+			for(my $i = 0; $i < scalar(@ests); $i++){
+				my $file = $ests[$i]; 
+				$file = abs_path($file); 
+	
+				#print "$file\n"; 
+				my @fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1];
+				#print "File: $task, $file, $newfile\n";  
+				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+				print STDERR "Rewriting $file to $newfile\n"; 
+				$ests[$i] = $newfile;  
+			}
+			$tier->CTL_OPT->{e_db} = \@ests;
+		}
+
+		if (defined $tier->CTL_OPT->{p_db}){ 
+			my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
+			for(my $i = 0; $i < scalar(@proteins); $i++){
+				my $file = $proteins[$i]; 
+				$file = abs_path($file); 
+	
+				my @fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				$proteins[$i] = $newfile; 
+			}
+			$tier->CTL_OPT->{p_db} = \@proteins; 
+		}
+
+		if (defined $tier->CTL_OPT->{d_db}){
+			my @d = @{$tier->CTL_OPT->{d_db}}; 	
+			for(my $i = 0; $i < scalar(@d); $i++){
+				my $file = $d[$i]; 
+				$file = abs_path($file); 
+		
+				my @fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				$d[$i] = $newfile; 
+			}
+			$tier->CTL_OPT->{d_db} = \@d; 
+		}
+
+		if (defined $tier->CTL_OPT->{r_db}){
+			my @r = @{$tier->CTL_OPT->{r_db}}; 	
+			for(my $i = 0; $i < scalar(@r); $i++){
+				my $file = $r[$i]; 
+				$file = abs_path($file); 
+	
+				my @fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				$r[$i] = $newfile; 
+			}
+			$tier->CTL_OPT->{r_db} = \@r; 
+		}
+
+		if (defined $tier->CTL_OPT->{a_db}){
+			my @a = @{$tier->CTL_OPT->{a_db}}; 	
+			for(my $i = 0; $i < scalar(@a); $i++){
+				my $file = $a[$i];
+				$file = abs_path($file); 
+				my @fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				$a[$i] = $newfile; 
+			}
+			$tier->CTL_OPT->{a_db} = \@a; 
+		}
+
+		#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
+		#instead we'll just transfer the files and let each worker index them if they'd like
+		my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
+		foreach my $input (@inputs){
+			my $file = $tier->CTL_OPT->{$input}; 
+			my @fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			if(-e $file){
+				$file = abs_path($file); 
+				work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+			}
+			$tier->CTL_OPT->{$input} = $newfile; 
+		}
+		###END - specifying input variables 
+
+		###BEGIN - transfer executables to the worker
+		my @files = ('snaphmm',  'SEEN_file', 'rmlib');
+
+		foreach my $x (@files){ 
+			my $file = $tier->CTL_OPT->{$x}; 
+			my @fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			if(-e $file) {
+				$file = abs_path($file); 
+				work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+				$tier->CTL_OPT->{$x} = "./$newfile"; 
+			}
+		}	 
+#also need RepbaseEMBL.pm in an automated fashion, it should be in the same directory as RepeatMaker?
+#	my $e = $tier->CTL_OPT->{'RepeatMasker'};
+#	my @fields = split(/\//, $e); 
+#	my $file = ""; 
+#	for(my $i = 0; $i < scalar(@fields) - 1 ; $i++){$file .= "/".$fields[$i];}
+#	my @pms = ("RepbaseRecord.pm", "RepbaseEMBL.pm", "ArrayList.pm", "ArrayListIterator.pm", "CrossmatchSearchEngine.pm", "DeCypherSearchEngine.pm", "FastaDB.pm", "LineHash.pm", "PubRef.pm", "RepeatAnnotationData.pm", "RepeatMaskerConfig.pm", "SearchEngineI.pm", "SearchResult.pm", "SearchResultCollection.pm", "SeqDBI.pm", "SimpleBatcher.pm", "Taxonomy.pm", "TRF.pm", "TRFResult.pm", "WUBlastSearchEngine.pm", "WUBlastXSearchEngine.pm"); 
+#	my $prefix = $file; 
+
+#	foreach my $newfile (@pms){             
+#		$file = $prefix."/$newfile"; 
+#	work_queuec::work_queue_task_specify_input_file($task, $file, "./"); 
+#	}
+		my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+
+		foreach my $v (@execs){
+			my $file = $tier->CTL_OPT->{$v}; 
+			if (! -e $file){
+				next;
+			}
+			print STDERR "File: $file\n"; 
+			$file = abs_path($file); 
+			print STDERR "Abs_path: $file\n"; 
+
+			my @fields = split(/\//, $file); 
+			my $prefix = ""; 
+			for (my $i = 0; $i < scalar(@fields) - 1; $i++){$prefix .= "/".$fields[$i];}
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			my $folder = $fields[scalar(@fields) - 2]; 
+			if(-e $file){
+				if (! -e "$v.tar"){
+					print STDERR "Running tar -cf $v.tar $prefix\n"; 
+					my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+				}
+				print STDERR "Specifying file: $prefix with remote name $v\n";  
+				#work_queuec::work_queue_task_specify_file($task, $prefix, $v, 0, 1);
+				work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+				#$tier->CTL_OPT->{$v} = "$v/$newfile"; 
+				print STDERR "Rewriting $file to $folder/$newfile\n"; 
+				$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
+			}
+		}
+		###END - transfer executables to the worker
+
+		###BEGIN - changing paths to force the workers to run things in the local directory 
+		#hopefully we can make the log file reside on the remote machine
+		$tier->CTL_OPT->{out_name} = "."; 
+		$tier->CTL_OPT->{out_base} = "."; 
+		$tier->CTL_OPT->{the_void} = ".";
+		my $file = $tier->DS_CTL->{log}; 
+		my @fields = split(/\//, $file);
+		$file = $fields[scalar(@fields) - 1]; 
+		$tier->DS_CTL->{log} = "./$file"; 
+		my $root = $tier->DS_CTL->{root}; 
+		#print "Root: $root\n"; 
+		$tier->DS_CTL->{root} = "./"; 
+		$tier->DS_CTL->{ds_object}->{_root} = "./"; 
+		$tier->{the_void} = "."; 
+		$tier->CTL_OPT->{CWD} = ".";  
+		$tier->GFF_DB->{dbfile} = "./";
+		$tier->CTL_OPT->{_TMP} = "./";  
+		###END - changing paths
+
+		#store the modified variables to the tier file that will be transmitted to the workers	
+		nstore \$tier, ($inFile);
+
+		###BEGIN - specifying output
+		#need to know the remote directory name, this is generated from the sequence header
+		if(!exists($tier->{VARS}->{fasta})){
+			print "Fasta doesn't exist\n"; 
+		}
+		my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
+        my $q_def = Fasta::getDef(\$fasta); #Get fasta header
+        my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
+		my $newfile = $root."/$seq_id";
+		print "Specifying output: $seq_id, $newfile\n";  
+		my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
+		if ($ds_flag){
+			use Digest::MD5 qw(md5_hex);
+
+			my $dir = "";#Datastore::MD5::id_to_dir($seq_id);
+			my($digest) = uc md5_hex($seq_id); # the hex string, uppercased
+			for(my $i = 0; $i < 2; $i++){
+				$dir .= substr($digest, $i*2, 2) ."/";
+			}
+			$dir .= $seq_id . "/";
+			print "Directory from MD5 = $dir, from $seq_id\n";  
+			work_queuec::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
+		}
+		else{
+			work_queuec::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
+		}
+		$seq_ids{$seq_id} = 1; 
+		###END - specifying output
+
+		print "Specifying tag $counter \n"; 
+		work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
+		$t1 = time; 
+		$wq_time += ($t1 - $t0); 
+		print "Submitting the task\n"; 
+		work_queuec::work_queue_submit($queue, $task);
+		print "Task submitted\n"; 
+		print "Created task with command: $command and counter $counter\n";
+		print "Task data: $wkDirPrefix$inFile\n"; 
+		return 1;
+	}
+}
+
+sub BuildSubmit {
+	$t0 = time; 
+	## pull $tierCtr implicitly from the global scope
+	my($howManyMore) = @_;
+	
+	my $highLimit = $tierCtr + $howManyMore;
+	$t1 = time; 
+	$wq_time += ($t1 - $t0); 
+	while( $tierCtr < $highLimit ) {
+		#used to do work of GenTiers() here, on the fly. now is all done at beginning
+		print "Entering submit task with parameter $tierCtr\n"; 	
+		SubmitTask($tierCtr);
+		$t0 = time; 
+		$tierCtr += $OPT{size};
+		$t1 = time; 
+		$wq_time += ($t1 - $t0); 
+	}
+}
+
+sub GenTiers {
+	## $iterator et. al. implicitly global
+	print "Generating Tiers\n";
+	my $tier;
+	my $numTiers = 0;
+	while (my $fasta = $iterator->nextFasta() ) {
+		$tier = Process::MpiTiers->new({fasta =>$fasta,
+		    CTL_OPT => \%CTL_OPT,
+		    DS_CTL  => $DS_CTL,
+		    GFF_DB  => $GFF_DB,
+		    build   => $build},
+		   '0',
+		   'Process::MpiChunk'
+		   );
+		nstore \$tier, ($numTiers."_todo.tier");
+		#print Dumper($tier); 		
+		$numTiers++;
+	}
+	return $numTiers;
+}
+
+$t1 = time; 
+$wq_time += ($t1 - $t0); 
+
+print time." :: Work Queue is generating serialized tier inputs \n";
+$t0 = time; 
+$highestTier = GenTiers();
+$t1 = time; 
+$maker_time += ($t1 - $t0); 
+
+$t0 = time; 
+print time." :: highest input generated was $highestTier \n";
+
+# generate and submit however many tiers (should ideally match number of workers) to start with
+$initialSubmit = $highestTier / 100;
+print "Submitting \n"; 
+$t1 = time; 
+$wq_time += ($t1 - $t0); 
+
+BuildSubmit($initialSubmit);
+print "Work Queue :: initial submission :: $initialSubmit tiers \n";
+
+open(LOG, ">>", "logfile"); 
+print LOG "#start\n";
+my $old_seconds = 0;
+my %failures; 
+while(!work_queuec::work_queue_empty($queue)) {
+	my($t1, $t3) = gettimeofday;	
+	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
+	#print "Killing zombie maker proc\n"; 
+	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+	#my $pid = `ps x | grep [m]aintain | cut -f1`;
+	#print "Perl Maintain.pl pid is: $pid\n";	
+	#kill(9,$pid);
+	#my $pid = wait(); 
+	#if($pid != -1){
+		#kill(9, $pid); 
+		#print "Perl PID: $pid\n"; 
+	#}
+	my $t = work_queuec::work_queue_wait($queue, 5); # wait 30 seconds
+	my($t2, $t4) = gettimeofday;
+	my $e = $t2 - $t1;
+	my $e2 = $t4-$t3;
+	my $stats = new work_queue::work_queue_stats();
+	work_queue::work_queue_get_stats($queue, $stats); 	
+	my $init = work_queue::work_queue_stats::swig_workers_init_get($stats);
+	my $ready = work_queue::work_queue_stats::swig_workers_ready_get($stats); 
+	my $busy = work_queue::work_queue_stats::swig_workers_busy_get($stats);
+	my $running = work_queue::work_queue_stats::swig_tasks_running_get($stats);
+	my $waiting = work_queue::work_queue_stats::swig_tasks_waiting_get($stats); 
+	my $complete = work_queue::work_queue_stats::swig_tasks_complete_get($stats);
+	my $tdispatched = work_queue::work_queue_stats::swig_total_tasks_dispatched_get($stats);
+	my $tcomplete = $tiersTerm;#work_queuec::work_queue_stats::swig_total_tasks_complete_get($stats);
+	my $tjoined = work_queue::work_queue_stats::swig_total_workers_joined_get($stats);
+	my $tremoved = work_queue::work_queue_stats::swig_total_workers_removed_get($stats); 
+	my $tsent = "0";# = work_queuec::work_queue_stats::;
+	my $treceived = "0";# = work_queuec::work_queue_stats::;
+	
+	my ($seconds,$microseconds) = gettimeofday; 
+	if($seconds - $old_seconds > 5){ 
+		print LOG "$seconds.$microseconds $init $ready $busy $running $waiting $complete $tdispatched $tcomplete $tjoined $tremoved $tsent $treceived\n";
+		print "$seconds.$microseconds $init $ready $busy $running $waiting $complete $tdispatched $tcomplete $tjoined $tremoved $tsent $treceived\n";
+		$old_seconds = $seconds;
+	}
+
+	if(defined($t)) {
+		$t0 = time; 
+		print "Task defined\n";
+		my $counter = work_queue::work_queue_task::swig_tag_get($t);
+		my $output = work_queue::work_queue_task::swig_output_get($t);
+		my $host = work_queue::work_queue_task::swig_host_get($t);
+		print STDERR $output;
+		### swig doesn't provide the correct retcode; this is a kludge...
+		my $retStatus; 
+		
+		$retStatus = index($output, "EXIT:");
+		if ( $retStatus != -1){
+			$retStatus = substr($output, $retStatus+5, 2);
+			$retStatus = sprintf("%d", $retStatus);
+		}
+		
+		print time." :: ".sprintf("%5d", $counter)." :: \n";
+		
+		### the hopeful, successful ending
+		if($retStatus == 1 || $retStatus == 0) {
+			$tiersTerm++;
+			print "finished tier $counter, $tiersTerm done so far \n";
+			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
+			work_queuec::work_queue_task_delete($t);
+		}
+		### tier resubmission on failure
+		else {
+			### save the worker's output for later dissection
+			$/ = "";
+
+			if($retStatus == -1) {
+				print "failed, resubmitting tier $counter\n";
+				$failures{$counter} += 1; 
+				$tier = ${retrieve($counter."_todo.tier")};
+				
+				### if it failed, we want to force recomputation
+				$tier->CTL_OPT->{ 'force' } = 1; 
+				nstore \$tier, ($counter."_todo.tier");
+			}
+			### general completion
+			else { 
+				print "completed, not terminated $counter, returned $retStatus\n";
+			}
+			if($failures{$counter} < 5){
+				work_queuec::work_queue_submit($queue, $t);
+			}
+			else{
+				print "Task $counter has failed too many times\n"; 
+			}
+
+		}
+		
+		$t1 = time; 
+		$process_time += ($t1 - $t0); 
+	} else { #
+	}
+	
+	while ( work_queuec::work_queue_hungry($queue) && $tierCtr < $highestTier) { # while
+		print ":: hungry, submitting $tierCtr \n";
+		BuildSubmit(1);
+	}
+}
+
+#make sure teh datastore directory actually exists prior to moving output into it. 
+#if (!-e $datastore){`mkdir $datastore`;}
+
+#move each of the output files into its correct place in the datastore
+#foreach my $key (sort keys %seq_ids){
+#	print "Moving $key to $datastore\n"; 
+#	if(ref($key) eq "HASH" || ref($key) eq "ARRAY"){
+#		next; 
+#	}
+#	if($key =~ "HASH"){next;}	
+#	`mv $key $datastore`; 
+#}
+
+#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
+print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
+print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_time: $process_time\n";
+ 
+work_queuec::work_queue_delete($queue);
+close(LOG);
+}
+else{
+	use Dumper::GFF::GFFV3;
+
+	my $tier;
+	my $f_count = @failed;
+	while (my $fasta = $iterator->nextFasta() || shift @failed){
+	    $tier = Process::MpiTiers->new({fasta =>$fasta,
+					    CTL_OPT => \%CTL_OPT,
+					    DS_CTL  => $DS_CTL,
+					    GFF_DB  => $GFF_DB,
+					    build   => $build},
+					   '0',
+					   'Process::MpiChunk'
+					   );
+	
+		#take a short break before processing previously failed contigs this handles 
+		#heavy processor usage when failure is related to maker process overlap
+		if($f_count != @failed){
+		sleep 1;
+	    }
+	    $f_count = @failed; #reset failure count
+	
+	    next if($tier->terminated);
+	    $tier->run_all;
+	    push(@failed, $tier->fasta) if ($tier->failed);
+	}
+}
+print STDERR "\n\nMaker is now finished!!!\n\n" unless($main::qq);
+
+#clean up all children processes
+Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+
+exit(0);

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+LOC="`pwd`"
+
+INPUT=`echo *.fa*`
+
+export PATH="$PATH:$LOC/maker/bin"
+export PATH="$PATH:$LOC/external/bin"
+export PATH="$PATH:$LOC/external/exe/blast/bin"
+export PATH="$PATH:$LOC/external/exe/snap/bin"
+export PATH="$PATH:$LOC/external/exe/repeatmasker"
+export PATH="$PATH:$LOC/external/exe/exonerate/bin"
+#export PATH="$PATH:$LOC/external/exe/augustus/bin"
+
+export PERL5LIB="$LOC/maker/lib"
+export PERL5LIB="$PERL5LIB:$LOC/maker/perl/lib"
+export PERL5LIB="$PERL5LIB:$LOC/external/lib/perl5"
+export PERL5LIB="$PERL5LIB:$LOC/external/lib/perl5/x86_64-linux-thread-multi"
+
+export PERL5LIB="$PERL5LIB:$LOC/cctools/lib/perl5/site_perl/5.8.8/"
+
+MAKER="perl `which maker_wq` -wq -d all"
+
+#$MAKER -CTL
+#sed -i "s/^genome=.*\$/genome=$INPUT/" maker_opts.ctl
+#sed -i "s/^blast_type=.*$/blast_type=ncbi+/" maker_bopts.ctl
+
+echo $MAKER $*
+$MAKER $*
+
+#rm *.ctl
+
