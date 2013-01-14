@@ -405,20 +405,38 @@ sub SubmitTask {
 		work_queuec::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 		###END - specifying the MAKER library files 
 
+		my $inFile = $counter."_todo.tier";
+		if (! -e $inFile){next;} 
+		### ztm :: new task, set its I/O parms
+		print "Specifying input $wkDirPrefix$inFile\n";
+		work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+
+		###BEGIN - specifying the input files 
+		#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
+		#$tier holds all of the information for the task; 
+		my $tier = ${retrieve($inFile)};
+		submit_edb_input_files($task,$tier);
+		submit_pdb_input_files($task,$tier);	
+		submit_ddb_input_files($task,$tier);	
+		submit_rdb_input_files($task,$tier);	
+		submit_adb_input_files($task,$tier);	
+		submit_input_files($task, $tier);	
+		submit_executable_files($task, $tier);	
+		
 		for(my $i = 1; $i <= $OPT{size}; $i++){
 		
-			my $inFile = $counter."_todo.tier";
-			if (! -e $inFile){next;} 
-			### ztm :: new task, set its I/O parms
-			print "Specifying input $wkDirPrefix$inFile\n";
-			work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+			#my $inFile = $counter."_todo.tier";
+			#if (! -e $inFile){next;} 
+			#### ztm :: new task, set its I/O parms
+			#print "Specifying input $wkDirPrefix$inFile\n";
+			#work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
-			###BEGIN - specifying the input files 
-			#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
-			print "Specifying all of the necessary files to run the workers locally\n"; 
-			#$tier holds all of the information for the task; 
-			my $tier = ${retrieve($inFile)};
-			submit_edb_input_files($task,$tier);	
+			####BEGIN - specifying the input files 
+			##TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
+			#print "Specifying all of the necessary files to run the workers locally\n"; 
+			##$tier holds all of the information for the task; 
+			#my $tier = ${retrieve($inFile)};
+			#submit_edb_input_files($task,$tier);	
 			#if (defined $tier->CTL_OPT->{e_db}){
 			#	my @ests = @{$tier->CTL_OPT->{e_db}};
 			#	for(my $j = 0; $j < scalar(@ests); $j++){
@@ -441,7 +459,7 @@ sub SubmitTask {
 			#	$tier->CTL_OPT->{e_db} = \@ests;
 			#}
 		
-			submit_pdb_input_files($task,$tier);	
+			#submit_pdb_input_files($task,$tier);	
 			#if (defined $tier->CTL_OPT->{p_db}){ 
 			#	my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
 			#	for(my $j = 0; $j < scalar(@proteins); $j++){
@@ -463,7 +481,7 @@ sub SubmitTask {
 			#	$tier->CTL_OPT->{p_db} = \@proteins; 
 			#}
 		
-			submit_ddb_input_files($task,$tier);	
+			#submit_ddb_input_files($task,$tier);	
 			#if (defined $tier->CTL_OPT->{d_db}){
 			#	my @d = @{$tier->CTL_OPT->{d_db}}; 	
 			#	for(my $j = 0; $j < scalar(@d); $j++){
@@ -485,7 +503,7 @@ sub SubmitTask {
 			#	$tier->CTL_OPT->{d_db} = \@d; 
 			#}
 		
-			submit_rdb_input_files($task,$tier);	
+			#submit_rdb_input_files($task,$tier);	
 			#if (defined $tier->CTL_OPT->{r_db}){
 			#	my @r = @{$tier->CTL_OPT->{r_db}}; 	
 			#	for(my $j = 0; $j < scalar(@r); $j++){
@@ -507,7 +525,7 @@ sub SubmitTask {
 			#	$tier->CTL_OPT->{r_db} = \@r; 
 			#}
 		
-			submit_adb_input_files($task,$tier);	
+			#submit_adb_input_files($task,$tier);	
 			#if (defined $tier->CTL_OPT->{a_db}){
 			#	my @a = @{$tier->CTL_OPT->{a_db}}; 	
 			#	for(my $j = 0; $j < scalar(@a); $j++){
@@ -531,7 +549,7 @@ sub SubmitTask {
 		
 			#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
 			#instead we'll just transfer the files and let each worker index them if they'd like
-			submit_input_files($task, $tier);	
+			#submit_input_files($task, $tier);	
 			#my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
 			#foreach my $input (@inputs){
 			#	if (! defined $tier->CTL_OPT->{$input}){next;}
@@ -548,7 +566,7 @@ sub SubmitTask {
 			###END - specifying input variables 
 		
 			###BEGIN - transfer executables to the worker
-			submit_executable_files($task, $tier);	
+			#submit_executable_files($task, $tier);	
 			#my @files = ('snaphmm',  'SEEN_file', 'rmlib');
 			#foreach my $x (@files){ 
 			#	my $file = $tier->CTL_OPT->{$x}; 
