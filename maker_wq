@@ -418,175 +418,179 @@ sub SubmitTask {
 			print "Specifying all of the necessary files to run the workers locally\n"; 
 			#$tier holds all of the information for the task; 
 			my $tier = ${retrieve($inFile)};
-			if (defined $tier->CTL_OPT->{e_db}){
-				my @ests = @{$tier->CTL_OPT->{e_db}};
-				for(my $j = 0; $j < scalar(@ests); $j++){
-					my $file = $ests[$j]; 
-					print STDERR "EST file: $file\n"; 
-					my @fields = split(/\//, $file);
-					if ($#fields > 1){
-						$file = abs_path($file); 
-					}
-			
-					@fields = split(/\//, $file);
-					my $newfile = $fields[scalar(@fields) - 1];
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
-					if ($#fields > 1) {
-						print STDERR "Rewriting $file to $newfile\n"; 
-						$ests[$j] = $newfile;  
-					}
-				}
-				$tier->CTL_OPT->{e_db} = \@ests;
-			}
+			submit_edb_input_files($task,$tier);	
+			#if (defined $tier->CTL_OPT->{e_db}){
+			#	my @ests = @{$tier->CTL_OPT->{e_db}};
+			#	for(my $j = 0; $j < scalar(@ests); $j++){
+			#		my $file = $ests[$j]; 
+			#		print STDERR "EST file: $file\n"; 
+			#		my @fields = split(/\//, $file);
+			#		if ($#fields > 1){
+			#			$file = abs_path($file); 
+			#		}
+			#
+			#		@fields = split(/\//, $file);
+			#		my $newfile = $fields[scalar(@fields) - 1];
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+			#		if ($#fields > 1) {
+			#			print STDERR "Rewriting $file to $newfile\n"; 
+			#			$ests[$j] = $newfile;  
+			#		}
+			#	}
+			#	$tier->CTL_OPT->{e_db} = \@ests;
+			#}
 		
-			if (defined $tier->CTL_OPT->{p_db}){ 
-				my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
-				for(my $j = 0; $j < scalar(@proteins); $j++){
-					my $file = $proteins[$j];
-					my @fields = split(/\//, $file);
+			submit_pdb_input_files($task,$tier);	
+			#if (defined $tier->CTL_OPT->{p_db}){ 
+			#	my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
+			#	for(my $j = 0; $j < scalar(@proteins); $j++){
+			#		my $file = $proteins[$j];
+			#		my @fields = split(/\//, $file);
 
-					if ($#fields > 1){
-						$file = abs_path($file); 
-					}
-			
-					@fields = split(/\//, $file); 
-
-					my $newfile = $fields[scalar(@fields) - 1]; 
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					if ($#fields > 1){
-						$proteins[$j] = $newfile; 
-					}
-				}
-				$tier->CTL_OPT->{p_db} = \@proteins; 
-			}
+			#		if ($#fields > 1){
+			#			$file = abs_path($file); 
+			#		}
+			#
+			#		@fields = split(/\//, $file); 
+			#		my $newfile = $fields[scalar(@fields) - 1]; 
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		if ($#fields > 1){
+			#			$proteins[$j] = $newfile; 
+			#		}
+			#	}
+			#	$tier->CTL_OPT->{p_db} = \@proteins; 
+			#}
 		
-			if (defined $tier->CTL_OPT->{d_db}){
-				my @d = @{$tier->CTL_OPT->{d_db}}; 	
-				for(my $j = 0; $j < scalar(@d); $j++){
-					my $file = $d[$j]; 
-					my @fields = split(/\//, $file);
+			submit_ddb_input_files($task,$tier);	
+			#if (defined $tier->CTL_OPT->{d_db}){
+			#	my @d = @{$tier->CTL_OPT->{d_db}}; 	
+			#	for(my $j = 0; $j < scalar(@d); $j++){
+			#		my $file = $d[$j]; 
+			#		my @fields = split(/\//, $file);
 
-					if ($#fields > 1){
-						$file = abs_path($file); 
-					}
+			#		if ($#fields > 1){
+			#			$file = abs_path($file); 
+			#		}
 		
-					@fields = split(/\//, $file); 
-					my $newfile = $fields[scalar(@fields) - 1]; 
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					if ($#fields > 1){
-						$d[$j] = $newfile; 
-					}
-				}
-				$tier->CTL_OPT->{d_db} = \@d; 
-			}
+			#		@fields = split(/\//, $file); 
+			#		my $newfile = $fields[scalar(@fields) - 1]; 
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		if ($#fields > 1){
+			#			$d[$j] = $newfile; 
+			#		}
+			#	}
+			#	$tier->CTL_OPT->{d_db} = \@d; 
+			#}
 		
-			if (defined $tier->CTL_OPT->{r_db}){
-				my @r = @{$tier->CTL_OPT->{r_db}}; 	
-				for(my $j = 0; $j < scalar(@r); $j++){
-					my $file = $r[$j]; 
-					my @fields = split(/\//, $file);
+			submit_rdb_input_files($task,$tier);	
+			#if (defined $tier->CTL_OPT->{r_db}){
+			#	my @r = @{$tier->CTL_OPT->{r_db}}; 	
+			#	for(my $j = 0; $j < scalar(@r); $j++){
+			#		my $file = $r[$j]; 
+			#		my @fields = split(/\//, $file);
 
-					if ($#fields > 1){
-						$file = abs_path($file); 
-					}
-			
-					@fields = split(/\//, $file); 
-					my $newfile = $fields[scalar(@fields) - 1]; 
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					if ($#fields > 1){
-						$r[$j] = $newfile; 
-					}
-				}
-				$tier->CTL_OPT->{r_db} = \@r; 
-			}
+			#		if ($#fields > 1){
+			#			$file = abs_path($file); 
+			#		}
+			#
+			#		@fields = split(/\//, $file); 
+			#		my $newfile = $fields[scalar(@fields) - 1]; 
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		if ($#fields > 1){
+			#			$r[$j] = $newfile; 
+			#		}
+			#	}
+			#	$tier->CTL_OPT->{r_db} = \@r; 
+			#}
 		
-			if (defined $tier->CTL_OPT->{a_db}){
-				my @a = @{$tier->CTL_OPT->{a_db}}; 	
-				for(my $j = 0; $j < scalar(@a); $j++){
-					my $file = $a[$j];
-					my @fields = split(/\//, $file);
+			submit_adb_input_files($task,$tier);	
+			#if (defined $tier->CTL_OPT->{a_db}){
+			#	my @a = @{$tier->CTL_OPT->{a_db}}; 	
+			#	for(my $j = 0; $j < scalar(@a); $j++){
+			#		my $file = $a[$j];
+			#		my @fields = split(/\//, $file);
 
-					if ($#fields > 1){
-						$file = abs_path($file); 
-					}
-					@fields = split(/\//, $file); 
-					my $newfile = $fields[scalar(@fields) - 1]; 
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-					
-					if ($#fields > 1){
-						$a[$j] = $newfile; 
-					}
-				}
-				$tier->CTL_OPT->{a_db} = \@a; 
-			}
+			#		if ($#fields > 1){
+			#			$file = abs_path($file); 
+			#		}
+			#		@fields = split(/\//, $file); 
+			#		my $newfile = $fields[scalar(@fields) - 1]; 
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		
+			#		if ($#fields > 1){
+			#			$a[$j] = $newfile; 
+			#		}
+			#	}
+			#	$tier->CTL_OPT->{a_db} = \@a; 
+			#}
 		
 			#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
 			#instead we'll just transfer the files and let each worker index them if they'd like
-			my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
-			foreach my $input (@inputs){
-				if (! defined $tier->CTL_OPT->{$input}){next;}
-				my $file = $tier->CTL_OPT->{$input}; 
-				my @fields = split(/\//, $file); 
-				my $newfile = $fields[scalar(@fields) - 1]; 
-				if(-e $file){
-					$file = abs_path($file); 
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
-				}
-				$tier->CTL_OPT->{$input} = $newfile; 
-			}
+			submit_input_files($task, $tier);	
+			#my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
+			#foreach my $input (@inputs){
+			#	if (! defined $tier->CTL_OPT->{$input}){next;}
+			#	my $file = $tier->CTL_OPT->{$input}; 
+			#	my @fields = split(/\//, $file); 
+			#	my $newfile = $fields[scalar(@fields) - 1]; 
+			#	if(-e $file){
+			#		$file = abs_path($file); 
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+			#	}
+			#	$tier->CTL_OPT->{$input} = $newfile; 
+			#}
 			###END - specifying input variables 
 		
 			###BEGIN - transfer executables to the worker
-			my @files = ('snaphmm',  'SEEN_file', 'rmlib');
-			foreach my $x (@files){ 
-				my $file = $tier->CTL_OPT->{$x}; 
-				my @fields = split(/\//, $file); 
-				my $newfile = $fields[scalar(@fields) - 1]; 
-				if(-e $file){
-					$file = abs_path($file); 
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
-					$tier->CTL_OPT->{$x} = "./$newfile"; 
-				}
+			submit_executable_files($task, $tier);	
+			#my @files = ('snaphmm',  'SEEN_file', 'rmlib');
+			#foreach my $x (@files){ 
+			#	my $file = $tier->CTL_OPT->{$x}; 
+			#	my @fields = split(/\//, $file); 
+			#	my $newfile = $fields[scalar(@fields) - 1]; 
+			#	if(-e $file){
+			#		$file = abs_path($file); 
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+			#		$tier->CTL_OPT->{$x} = "./$newfile"; 
+			#	}
+			#}	 
+			#my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+			#foreach my $v (@execs){
+			#	my $file = $tier->CTL_OPT->{$v}; 
+			#	if (! -e $file){
+			#		next;
+			#	}
+			#	print STDERR "File: $file\n"; 
+			#	$file = abs_path($file); 
+			#	print STDERR "Abs_path: $file\n"; 
 		
-			}	 
-			
-			my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
-			foreach my $v (@execs){
-				my $file = $tier->CTL_OPT->{$v}; 
-				if (! -e $file){
-					next;
-				}
-				print STDERR "File: $file\n"; 
-				$file = abs_path($file); 
-				print STDERR "Abs_path: $file\n"; 
+			#	my @fields = split(/\//, $file); 
+			#	my $prefix = ""; 
+			#	for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
+			#		$prefix .= "/".$fields[$j];
+			#	}
+			#	my $newfile = $fields[scalar(@fields) - 1]; 
+			#	my $folder = $fields[scalar(@fields) - 2]; 
+			#	if(-e $file){
+			#		if (! -e "$v.tar"){
+			#			print STDERR "Running tar -cf $v.tar $prefix\n"; 
+			#			my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+			#		}
+			#		print STDERR "Specifying file: $prefix with remote name $v\n";  
+			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+			#		print STDERR "Rewriting $file to $folder/$newfile\n"; 
+			#		$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
 		
-				my @fields = split(/\//, $file); 
-				my $prefix = ""; 
-				for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
-					$prefix .= "/".$fields[$j];
-				}
-				my $newfile = $fields[scalar(@fields) - 1]; 
-				my $folder = $fields[scalar(@fields) - 2]; 
-				if(-e $file){
-					if (! -e "$v.tar"){
-						print STDERR "Running tar -cf $v.tar $prefix\n"; 
-						my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
-					}
-					print STDERR "Specifying file: $prefix with remote name $v\n";  
-					#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-					work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
-					print STDERR "Rewriting $file to $folder/$newfile\n"; 
-					$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
-		
-				}
-			}
+			#	}
+			#}
 			###END - transfer executables to the worker
 		
 			###BEGIN - changing paths to force the workers to run things in the local directory 
@@ -683,106 +687,111 @@ sub SubmitTask {
 		print "Specifying all of the necessary files to run the workers locally\n"; 
 		#$tier holds all of the information for the task; 
 		my $tier = ${retrieve($inFile)};
-		if (defined $tier->CTL_OPT->{e_db}){
-			my @ests = @{$tier->CTL_OPT->{e_db}};
-			for(my $i = 0; $i < scalar(@ests); $i++){
-				my $file = $ests[$i]; 
-				$file = abs_path($file); 
+		submit_edb_input_files($task,$tier);	
+		#if (defined $tier->CTL_OPT->{e_db}){
+		#	my @ests = @{$tier->CTL_OPT->{e_db}};
+		#	for(my $i = 0; $i < scalar(@ests); $i++){
+		#		my $file = $ests[$i]; 
+		#		$file = abs_path($file); 
 	
-				#print "$file\n"; 
-				my @fields = split(/\//, $file); 
-				my $newfile = $fields[scalar(@fields) - 1];
-				#print "File: $task, $file, $newfile\n";  
-				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
-				print STDERR "Rewriting $file to $newfile\n"; 
-				$ests[$i] = $newfile;  
-			}
-			$tier->CTL_OPT->{e_db} = \@ests;
-		}
+		#		#print "$file\n"; 
+		#		my @fields = split(/\//, $file); 
+		#		my $newfile = $fields[scalar(@fields) - 1];
+		#		#print "File: $task, $file, $newfile\n";  
+		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+		#		print STDERR "Rewriting $file to $newfile\n"; 
+		#		$ests[$i] = $newfile;  
+		#	}
+		#	$tier->CTL_OPT->{e_db} = \@ests;
+		#}
 
-		if (defined $tier->CTL_OPT->{p_db}){ 
-			my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
-			for(my $i = 0; $i < scalar(@proteins); $i++){
-				my $file = $proteins[$i]; 
-				$file = abs_path($file); 
+		submit_pdb_input_files($task,$tier);	
+		#if (defined $tier->CTL_OPT->{p_db}){ 
+		#	my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
+		#	for(my $i = 0; $i < scalar(@proteins); $i++){
+		#		my $file = $proteins[$i]; 
+		#		$file = abs_path($file); 
 	
-				my @fields = split(/\//, $file); 
-				my $newfile = $fields[scalar(@fields) - 1]; 
-				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-				$proteins[$i] = $newfile; 
-			}
-			$tier->CTL_OPT->{p_db} = \@proteins; 
-		}
+		#		my @fields = split(/\//, $file); 
+		#		my $newfile = $fields[scalar(@fields) - 1]; 
+		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		$proteins[$i] = $newfile; 
+		#	}
+		#	$tier->CTL_OPT->{p_db} = \@proteins; 
+		#}
 
-		if (defined $tier->CTL_OPT->{d_db}){
-			my @d = @{$tier->CTL_OPT->{d_db}}; 	
-			for(my $i = 0; $i < scalar(@d); $i++){
-				my $file = $d[$i]; 
-				$file = abs_path($file); 
-		
-				my @fields = split(/\//, $file); 
-				my $newfile = $fields[scalar(@fields) - 1]; 
-				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-				$d[$i] = $newfile; 
-			}
-			$tier->CTL_OPT->{d_db} = \@d; 
-		}
+		submit_ddb_input_files($task,$tier);	
+		#if (defined $tier->CTL_OPT->{d_db}){
+		#	my @d = @{$tier->CTL_OPT->{d_db}}; 	
+		#	for(my $i = 0; $i < scalar(@d); $i++){
+		#		my $file = $d[$i]; 
+		#		$file = abs_path($file); 
+		#
+		#		my @fields = split(/\//, $file); 
+		#		my $newfile = $fields[scalar(@fields) - 1]; 
+		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		$d[$i] = $newfile; 
+		#	}
+		#	$tier->CTL_OPT->{d_db} = \@d; 
+		#}
 
-		if (defined $tier->CTL_OPT->{r_db}){
-			my @r = @{$tier->CTL_OPT->{r_db}}; 	
-			for(my $i = 0; $i < scalar(@r); $i++){
-				my $file = $r[$i]; 
-				$file = abs_path($file); 
+		submit_rdb_input_files($task,$tier);	
+		#if (defined $tier->CTL_OPT->{r_db}){
+		#	my @r = @{$tier->CTL_OPT->{r_db}}; 	
+		#	for(my $i = 0; $i < scalar(@r); $i++){
+		#		my $file = $r[$i]; 
+		#		$file = abs_path($file); 
 	
-				my @fields = split(/\//, $file); 
-				my $newfile = $fields[scalar(@fields) - 1]; 
-				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-				$r[$i] = $newfile; 
-			}
-			$tier->CTL_OPT->{r_db} = \@r; 
-		}
+		#		my @fields = split(/\//, $file); 
+		#		my $newfile = $fields[scalar(@fields) - 1]; 
+		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		$r[$i] = $newfile; 
+		#	}
+		#}
 
-		if (defined $tier->CTL_OPT->{a_db}){
-			my @a = @{$tier->CTL_OPT->{a_db}}; 	
-			for(my $i = 0; $i < scalar(@a); $i++){
-				my $file = $a[$i];
-				$file = abs_path($file); 
-				my @fields = split(/\//, $file); 
-				my $newfile = $fields[scalar(@fields) - 1]; 
-				work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-				$a[$i] = $newfile; 
-			}
-			$tier->CTL_OPT->{a_db} = \@a; 
-		}
+		submit_adb_input_files($task,$tier);	
+		#if (defined $tier->CTL_OPT->{a_db}){
+		#	my @a = @{$tier->CTL_OPT->{a_db}}; 	
+		#	for(my $i = 0; $i < scalar(@a); $i++){
+		#		my $file = $a[$i];
+		#		$file = abs_path($file); 
+		#		my @fields = split(/\//, $file); 
+		#		my $newfile = $fields[scalar(@fields) - 1]; 
+		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		$a[$i] = $newfile; 
+		#	}
+		#	$tier->CTL_OPT->{a_db} = \@a; 
+		#}
 
 		#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
 		#instead we'll just transfer the files and let each worker index them if they'd like
-		my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
-		foreach my $input (@inputs){
-			my $file = $tier->CTL_OPT->{$input}; 
-			my @fields = split(/\//, $file); 
-			my $newfile = $fields[scalar(@fields) - 1]; 
-			if(-e $file){
-				$file = abs_path($file); 
-				work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
-			}
-			$tier->CTL_OPT->{$input} = $newfile; 
-		}
+		submit_input_files($task,$tier);	
+		#my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
+		#foreach my $input (@inputs){
+		#	my $file = $tier->CTL_OPT->{$input}; 
+		#	my @fields = split(/\//, $file); 
+		#	my $newfile = $fields[scalar(@fields) - 1]; 
+		#	if(-e $file){
+		#		$file = abs_path($file); 
+		#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+		#	}
+		#	$tier->CTL_OPT->{$input} = $newfile; 
+		#}
 		###END - specifying input variables 
 
 		###BEGIN - transfer executables to the worker
-		my @files = ('snaphmm',  'SEEN_file', 'rmlib');
-
-		foreach my $x (@files){ 
-			my $file = $tier->CTL_OPT->{$x}; 
-			my @fields = split(/\//, $file); 
-			my $newfile = $fields[scalar(@fields) - 1]; 
-			if(-e $file) {
-				$file = abs_path($file); 
-				work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
-				$tier->CTL_OPT->{$x} = "./$newfile"; 
-			}
-		}	 
+		submit_executable_files($task,$tier);	
+		#my @files = ('snaphmm',  'SEEN_file', 'rmlib');
+		#foreach my $x (@files){ 
+		#	my $file = $tier->CTL_OPT->{$x}; 
+		#	my @fields = split(/\//, $file); 
+		#	my $newfile = $fields[scalar(@fields) - 1]; 
+		#	if(-e $file) {
+		#		$file = abs_path($file); 
+		#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+		#		$tier->CTL_OPT->{$x} = "./$newfile"; 
+		#	}
+		#}	 
 #also need RepbaseEMBL.pm in an automated fashion, it should be in the same directory as RepeatMaker?
 #	my $e = $tier->CTL_OPT->{'RepeatMasker'};
 #	my @fields = split(/\//, $e); 
@@ -795,35 +804,34 @@ sub SubmitTask {
 #		$file = $prefix."/$newfile"; 
 #	work_queuec::work_queue_task_specify_input_file($task, $file, "./"); 
 #	}
-		my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+		#my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
 
-		foreach my $v (@execs){
-			my $file = $tier->CTL_OPT->{$v}; 
-			if (! -e $file){
-				next;
-			}
-			print STDERR "File: $file\n"; 
-			$file = abs_path($file); 
-			print STDERR "Abs_path: $file\n"; 
-
-			my @fields = split(/\//, $file); 
-			my $prefix = ""; 
-			for (my $i = 0; $i < scalar(@fields) - 1; $i++){$prefix .= "/".$fields[$i];}
-			my $newfile = $fields[scalar(@fields) - 1]; 
-			my $folder = $fields[scalar(@fields) - 2]; 
-			if(-e $file){
-				if (! -e "$v.tar"){
-					print STDERR "Running tar -cf $v.tar $prefix\n"; 
-					my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
-				}
-				print STDERR "Specifying file: $prefix with remote name $v\n";  
-				#work_queuec::work_queue_task_specify_file($task, $prefix, $v, 0, 1);
-				work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
-				#$tier->CTL_OPT->{$v} = "$v/$newfile"; 
-				print STDERR "Rewriting $file to $folder/$newfile\n"; 
-				$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
-			}
-		}
+		#foreach my $v (@execs){
+		#	my $file = $tier->CTL_OPT->{$v}; 
+		#	if (! -e $file){
+		#		next;
+		#	}
+		#	print STDERR "File: $file\n"; 
+		#	$file = abs_path($file); 
+		#	print STDERR "Abs_path: $file\n"; 
+		#	my @fields = split(/\//, $file); 
+		#	my $prefix = ""; 
+		#	for (my $i = 0; $i < scalar(@fields) - 1; $i++){$prefix .= "/".$fields[$i];}
+		#	my $newfile = $fields[scalar(@fields) - 1]; 
+		#	my $folder = $fields[scalar(@fields) - 2]; 
+		#	if(-e $file){
+		#		if (! -e "$v.tar"){
+		#			print STDERR "Running tar -cf $v.tar $prefix\n"; 
+		#			my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+		#		}
+		#		print STDERR "Specifying file: $prefix with remote name $v\n";  
+		#		#work_queuec::work_queue_task_specify_file($task, $prefix, $v, 0, 1);
+		#		work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+		#		#$tier->CTL_OPT->{$v} = "$v/$newfile"; 
+		#		print STDERR "Rewriting $file to $folder/$newfile\n"; 
+		#		$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
+		#	}
+		#}
 		###END - transfer executables to the worker
 
 		###BEGIN - changing paths to force the workers to run things in the local directory 
@@ -928,6 +936,189 @@ sub GenTiers {
 		$numTiers++;
 	}
 	return $numTiers;
+}
+
+sub submit_edb_input_files {
+	my($task, $tier) = @_;
+	if (defined $tier->CTL_OPT->{e_db}){
+		my @ests = @{$tier->CTL_OPT->{e_db}};
+		for(my $j = 0; $j < scalar(@ests); $j++){
+			my $file = $ests[$j]; 
+			print STDERR "EST file: $file\n"; 
+			my @fields = split(/\//, $file);
+			if ($#fields > 1){
+				$file = abs_path($file); 
+			}
+	
+			@fields = split(/\//, $file);
+			my $newfile = $fields[scalar(@fields) - 1];
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+			if ($#fields > 1) {
+				print STDERR "Rewriting $file to $newfile\n"; 
+				$ests[$j] = $newfile;  
+			}
+		}
+		$tier->CTL_OPT->{e_db} = \@ests;
+	}
+}
+
+sub submit_pdb_input_files {
+	my($task, $tier) = @_;
+	if (defined $tier->CTL_OPT->{p_db}){ 
+		my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
+		for(my $j = 0; $j < scalar(@proteins); $j++){
+			my $file = $proteins[$j];
+			my @fields = split(/\//, $file);
+
+			if ($#fields > 1){
+				$file = abs_path($file); 
+			}
+	
+			@fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			if ($#fields > 1){
+				$proteins[$j] = $newfile; 
+			}
+		}
+		$tier->CTL_OPT->{p_db} = \@proteins; 
+	}	
+}
+
+sub submit_ddb_input_files {
+	my($task, $tier) = @_;
+	if (defined $tier->CTL_OPT->{d_db}){
+		my @d = @{$tier->CTL_OPT->{d_db}}; 	
+		for(my $j = 0; $j < scalar(@d); $j++){
+			my $file = $d[$j]; 
+			my @fields = split(/\//, $file);
+
+			if ($#fields > 1){
+				$file = abs_path($file); 
+			}
+
+			@fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			if ($#fields > 1){
+				$d[$j] = $newfile; 
+			}
+		}
+		$tier->CTL_OPT->{d_db} = \@d; 
+	}		
+}
+
+sub submit_rdb_input_files {
+	my($task, $tier) = @_;
+	if (defined $tier->CTL_OPT->{r_db}){
+		my @r = @{$tier->CTL_OPT->{r_db}}; 	
+		for(my $j = 0; $j < scalar(@r); $j++){
+			my $file = $r[$j]; 
+			my @fields = split(/\//, $file);
+
+			if ($#fields > 1){
+				$file = abs_path($file); 
+			}
+	
+			@fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			if ($#fields > 1){
+				$r[$j] = $newfile; 
+			}
+		}
+		$tier->CTL_OPT->{r_db} = \@r; 
+	}
+}
+
+sub submit_adb_input_files {
+	my($task, $tier) = @_;
+	if (defined $tier->CTL_OPT->{a_db}){
+		my @a = @{$tier->CTL_OPT->{a_db}}; 	
+		for(my $j = 0; $j < scalar(@a); $j++){
+			my $file = $a[$j];
+			my @fields = split(/\//, $file);
+
+			if ($#fields > 1){
+				$file = abs_path($file); 
+			}
+			@fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			
+			if ($#fields > 1){
+				$a[$j] = $newfile; 
+			}
+		}
+		$tier->CTL_OPT->{a_db} = \@a; 
+	}
+}
+
+sub submit_input_files {
+	my($task, $tier) = @_;
+	my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
+	foreach my $input (@inputs){
+		if (! defined $tier->CTL_OPT->{$input}){next;}
+		my $file = $tier->CTL_OPT->{$input}; 
+		my @fields = split(/\//, $file); 
+		my $newfile = $fields[scalar(@fields) - 1]; 
+		if(-e $file){
+			$file = abs_path($file); 
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+		}
+		$tier->CTL_OPT->{$input} = $newfile; 
+	}
+}
+
+sub submit_executable_files($task, $tier) {	
+	my($task, $tier) = @_;
+	my @files = ('snaphmm',  'SEEN_file', 'rmlib');
+	foreach my $x (@files){ 
+		my $file = $tier->CTL_OPT->{$x}; 
+		my @fields = split(/\//, $file); 
+		my $newfile = $fields[scalar(@fields) - 1]; 
+		if(-e $file){
+			$file = abs_path($file); 
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+			$tier->CTL_OPT->{$x} = "./$newfile"; 
+		}
+
+	}	 
+	
+	my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+	foreach my $v (@execs){
+		my $file = $tier->CTL_OPT->{$v}; 
+		if (! -e $file){
+			next;
+		}
+		$file = abs_path($file); 
+		print STDERR "Abs_path: $file\n"; 
+
+		my @fields = split(/\//, $file); 
+		my $prefix = ""; 
+		for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
+			$prefix .= "/".$fields[$j];
+		}
+		my $newfile = $fields[scalar(@fields) - 1]; 
+		my $folder = $fields[scalar(@fields) - 2]; 
+		if(-e $file){
+			if (! -e "$v.tar"){
+				print STDERR "Running tar -cf $v.tar $prefix\n"; 
+				my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+			}
+			print STDERR "Specifying file: $prefix with remote name $v\n";  
+			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+			$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
+		}
+	}
 }
 
 $t1 = time; 
