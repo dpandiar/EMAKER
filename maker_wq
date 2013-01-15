@@ -2,9 +2,7 @@
 
 my $maker_time = 0; 
 my $wq_time = 0; 
-my $transfer_time = 0; 
-my $wait_time = 0; 
-my $process_time = 0; 
+my $process_output_time = 0; 
 my $t0 = 0; 
 
 $t0 = time;  
@@ -969,7 +967,6 @@ sub submit_edb_input_files {
 	
 			@fields = split(/\//, $file);
 			my $newfile = $fields[scalar(@fields) - 1];
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
 			if ($#fields > 1) {
 				print STDERR "Rewriting $file to $newfile\n"; 
@@ -994,7 +991,6 @@ sub submit_pdb_input_files {
 	
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			if ($#fields > 1){
 				$proteins[$j] = $newfile; 
@@ -1018,7 +1014,6 @@ sub submit_ddb_input_files {
 
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			if ($#fields > 1){
 				$d[$j] = $newfile; 
@@ -1042,7 +1037,6 @@ sub submit_rdb_input_files {
 	
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			if ($#fields > 1){
 				$r[$j] = $newfile; 
@@ -1065,7 +1059,6 @@ sub submit_adb_input_files {
 			}
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			
 			if ($#fields > 1){
@@ -1086,7 +1079,6 @@ sub submit_input_files {
 		my $newfile = $fields[scalar(@fields) - 1]; 
 		if(-e $file){
 			$file = abs_path($file); 
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
 		}
 		$tier->CTL_OPT->{$input} = $newfile; 
@@ -1102,7 +1094,6 @@ sub submit_executable_files($task, $tier) {
 		my $newfile = $fields[scalar(@fields) - 1]; 
 		if(-e $file){
 			$file = abs_path($file); 
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
 			$tier->CTL_OPT->{$x} = "./$newfile"; 
 		}
@@ -1131,7 +1122,6 @@ sub submit_executable_files($task, $tier) {
 				my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
 			}
 			print STDERR "Specifying file: $prefix with remote name $v\n";  
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 			$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
 		}
@@ -1268,7 +1258,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 			}
 
 		}
-		$process_time += (time - $t0); 
+		$process_output_time += (time - $t0); 
 	} else { #
 	}
 	
@@ -1293,7 +1283,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 
 #TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
 print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
-print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_time: $process_time\n";
+print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
  
 work_queuec::work_queue_delete($queue);
 close(LOG);
@@ -1317,7 +1307,7 @@ else{
 		#take a short break before processing previously failed contigs this handles 
 		#heavy processor usage when failure is related to maker process overlap
 		if($f_count != @failed){
-		sleep 1;
+			sleep 1;
 	    }
 	    $f_count = @failed; #reset failure count
 	
