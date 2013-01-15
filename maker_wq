@@ -422,6 +422,7 @@ sub SubmitTask {
 		submit_adb_input_files($task,$tier);	
 		submit_input_files($task, $tier);	
 		submit_executable_files($task, $tier);	
+		configure_remote_execution($tier);	
 		
 		for(my $i = 1; $i <= $OPT{size}; $i++){
 		
@@ -613,21 +614,23 @@ sub SubmitTask {
 		
 			###BEGIN - changing paths to force the workers to run things in the local directory 
 			#hopefully we can make the log file reside on the remote machine
-			$tier->CTL_OPT->{out_name} = "."; 
-			$tier->CTL_OPT->{out_base} = "."; 
-			$tier->CTL_OPT->{the_void} = ".";
-			my $file = $tier->DS_CTL->{log}; 
-			my @fields = split(/\//, $file);
-			$file = $fields[scalar(@fields) - 1]; 
-			$tier->DS_CTL->{log} = "./$file"; 
+			#configure_remote_execution($tier);	
 			my $root = $tier->DS_CTL->{root}; 
-			#print "Root: $root\n"; 
-			$tier->DS_CTL->{root} = "./"; 
-			$tier->DS_CTL->{ds_object}->{_root} = "./"; 
-			$tier->{the_void} = "."; 
-			$tier->CTL_OPT->{CWD} = ".";  
-			$tier->GFF_DB->{dbfile} = "./";
-			$tier->CTL_OPT->{_TMP} = "./";  
+			#$tier->CTL_OPT->{out_name} = "."; 
+			#$tier->CTL_OPT->{out_base} = "."; 
+			#$tier->CTL_OPT->{the_void} = ".";
+			#my $file = $tier->DS_CTL->{log}; 
+			#my @fields = split(/\//, $file);
+			#$file = $fields[scalar(@fields) - 1]; 
+			#$tier->DS_CTL->{log} = "./$file"; 
+			#my $root = $tier->DS_CTL->{root}; 
+			##print "Root: $root\n"; 
+			#$tier->DS_CTL->{root} = "./"; 
+			#$tier->DS_CTL->{ds_object}->{_root} = "./"; 
+			#$tier->{the_void} = "."; 
+			#$tier->CTL_OPT->{CWD} = ".";  
+			#$tier->GFF_DB->{dbfile} = "./";
+			#$tier->CTL_OPT->{_TMP} = "./";  
 			###END - changing paths
 		
 			#store the modified variables to the tier file that will be transmitted to the workers	
@@ -854,21 +857,24 @@ sub SubmitTask {
 
 		###BEGIN - changing paths to force the workers to run things in the local directory 
 		#hopefully we can make the log file reside on the remote machine
-		$tier->CTL_OPT->{out_name} = "."; 
-		$tier->CTL_OPT->{out_base} = "."; 
-		$tier->CTL_OPT->{the_void} = ".";
-		my $file = $tier->DS_CTL->{log}; 
-		my @fields = split(/\//, $file);
-		$file = $fields[scalar(@fields) - 1]; 
-		$tier->DS_CTL->{log} = "./$file"; 
+		#print STDERR "HERE:\n";	
+		configure_remote_execution($tier);	
 		my $root = $tier->DS_CTL->{root}; 
-		#print "Root: $root\n"; 
-		$tier->DS_CTL->{root} = "./"; 
-		$tier->DS_CTL->{ds_object}->{_root} = "./"; 
-		$tier->{the_void} = "."; 
-		$tier->CTL_OPT->{CWD} = ".";  
-		$tier->GFF_DB->{dbfile} = "./";
-		$tier->CTL_OPT->{_TMP} = "./";  
+		#$tier->CTL_OPT->{out_name} = "."; 
+		#$tier->CTL_OPT->{out_base} = "."; 
+		#$tier->CTL_OPT->{the_void} = ".";
+		#my $file = $tier->DS_CTL->{log}; 
+		#my @fields = split(/\//, $file);
+		#$file = $fields[scalar(@fields) - 1]; 
+		#$tier->DS_CTL->{log} = "./$file"; 
+		#my $root = $tier->DS_CTL->{root}; 
+		##print "Root: $root\n"; 
+		#$tier->DS_CTL->{root} = "./"; 
+		#$tier->DS_CTL->{ds_object}->{_root} = "./"; 
+		#$tier->{the_void} = "."; 
+		#$tier->CTL_OPT->{CWD} = ".";  
+		#$tier->GFF_DB->{dbfile} = "./";
+		#$tier->CTL_OPT->{_TMP} = "./";  
 		###END - changing paths
 
 		#store the modified variables to the tier file that will be transmitted to the workers	
@@ -1137,6 +1143,24 @@ sub submit_executable_files($task, $tier) {
 			$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
 		}
 	}
+}
+
+sub configure_remote_execution {
+	my($tier) = @_;
+	$tier->CTL_OPT->{out_name} = "."; 
+	$tier->CTL_OPT->{out_base} = "."; 
+	$tier->CTL_OPT->{the_void} = ".";
+	my $file = $tier->DS_CTL->{log}; 
+	my @fields = split(/\//, $file);
+	$file = $fields[scalar(@fields) - 1]; 
+	$tier->DS_CTL->{log} = "./$file"; 
+	my $root = $tier->DS_CTL->{root}; 
+	$tier->DS_CTL->{root} = "./"; 
+	$tier->DS_CTL->{ds_object}->{_root} = "./"; 
+	$tier->{the_void} = "."; 
+	$tier->CTL_OPT->{CWD} = ".";  
+	$tier->GFF_DB->{dbfile} = "./";
+	$tier->CTL_OPT->{_TMP} = "./";  
 }
 
 $t1 = time; 
