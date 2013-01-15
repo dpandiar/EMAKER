@@ -65,19 +65,10 @@ use Cwd qw(abs_path);
 use FileHandle;
 use File::Path;
 use Getopt::Long qw(:config no_ignore_case);
-use File::Temp qw(tempfile tempdir);
-#use Bio::DB::Fasta;
 use GI;
-#use Dumper::GFF::GFFV3;
 use Iterator::Any;
-use Iterator::Fasta;
-use Iterator::GFF3;
 use Fasta;
-use FastaChunker;
 use maker::auto_annotator;
-use cluster;
-use repeat_mask_seq;
-use runlog;
 use ds_utility;
 use GFFDB;
 use Error qw(:try);
@@ -85,6 +76,15 @@ use Error::Simple;
 use Process::MpiChunk;
 use Process::MpiTiers;
 use Proc::Signal;
+#use File::Temp qw(tempfile tempdir);
+#use Bio::DB::Fasta;
+#use Dumper::GFF::GFFV3;
+#use Iterator::Fasta;
+#use Iterator::GFF3;
+#use cluster;
+#use repeat_mask_seq;
+#use runlog;
+#use FastaChunker;
 
 $| = 1;
 
@@ -305,7 +305,7 @@ use Storable qw(nstore retrieve);
 #use FindBin;                 # locate this script
 #use lib "/afs/crc.nd.edu/group/NDBL/athrash1/cctools/lib/perl5/site_perl/5.10.1/";  # use the parent directory
 use work_queue;
-use Data::Dumper;
+#use Data::Dumper;
 
 my $bird = 0;
 my $wkDirPrefix;
@@ -1290,7 +1290,7 @@ close(LOG);
 }
 #code for handling non WQ based execution through MPI.
 else{
-	use Dumper::GFF::GFFV3;
+	#use Dumper::GFF::GFFV3;
 
 	my $tier;
 	my $f_count = @failed;
