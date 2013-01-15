@@ -6,7 +6,6 @@ my $transfer_time = 0;
 my $wait_time = 0; 
 my $process_time = 0; 
 my $t0 = 0; 
-my $t1 = 0;
 
 $t0 = time;  
 eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
@@ -298,8 +297,7 @@ catch Error::Simple with{
     
     exit($code);
 };
-$t1 = time; 
-$maker_time += ($t1 - $t0); 
+$maker_time += (time - $t0); 
 
 if($OPT{wq}){
 $t0 = time; 
@@ -375,8 +373,7 @@ if(!-e $datastore) {
 sub SubmitTask {
 	$t0 = time; 
 	my($counter) = @_;
-	$t1 = time; 
-	$wq_time += ($t1 - $t0); 
+	$wq_time += (time - $t0); 
 
 	if($OPT{size} > 1){
 		$t0 = time; 
@@ -672,8 +669,7 @@ sub SubmitTask {
 			$counter++; 
 		}
 		
-		$t1 = time; 
-		$wq_time += ($t1 - $t0); 
+		$wq_time += (time - $t0); 
 		print "Created task with command: $command and counter $counter, $t\n";
 		work_queuec::work_queue_submit($queue, $task);
 		print "Task submitted\n"; 
@@ -911,8 +907,7 @@ sub SubmitTask {
 
 		print "Specifying tag $counter \n"; 
 		work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-		$t1 = time; 
-		$wq_time += ($t1 - $t0); 
+		$wq_time += (time - $t0); 
 		print "Submitting the task\n"; 
 		work_queuec::work_queue_submit($queue, $task);
 		print "Task submitted\n"; 
@@ -928,16 +923,14 @@ sub BuildSubmit {
 	my($howManyMore) = @_;
 	
 	my $highLimit = $tierCtr + $howManyMore;
-	$t1 = time; 
-	$wq_time += ($t1 - $t0); 
+	$wq_time += (time - $t0); 
 	while( $tierCtr < $highLimit ) {
 		#used to do work of GenTiers() here, on the fly. now is all done at beginning
 		print "Entering submit task with parameter $tierCtr\n"; 	
 		SubmitTask($tierCtr);
 		$t0 = time; 
 		$tierCtr += $OPT{size};
-		$t1 = time; 
-		$wq_time += ($t1 - $t0); 
+		$wq_time += (time - $t0); 
 	}
 }
 
@@ -1163,14 +1156,12 @@ sub configure_remote_execution {
 	$tier->CTL_OPT->{_TMP} = "./";  
 }
 
-$t1 = time; 
-$wq_time += ($t1 - $t0); 
+$wq_time += (time - $t0); 
 
 print time." :: Work Queue is generating serialized tier inputs \n";
 $t0 = time; 
 $highestTier = GenTiers();
-$t1 = time; 
-$maker_time += ($t1 - $t0); 
+$maker_time += (time - $t0); 
 
 $t0 = time; 
 print time." :: highest input generated was $highestTier \n";
@@ -1178,8 +1169,7 @@ print time." :: highest input generated was $highestTier \n";
 # generate and submit however many tiers (should ideally match number of workers) to start with
 $initialSubmit = $highestTier / 100;
 print "Submitting \n"; 
-$t1 = time; 
-$wq_time += ($t1 - $t0); 
+$wq_time += (time - $t0); 
 
 BuildSubmit($initialSubmit);
 print "Work Queue :: initial submission :: $initialSubmit tiers \n";
@@ -1278,9 +1268,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 			}
 
 		}
-		
-		$t1 = time; 
-		$process_time += ($t1 - $t0); 
+		$process_time += (time - $t0); 
 	} else { #
 	}
 	
@@ -1310,6 +1298,7 @@ print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_time: 
 work_queuec::work_queue_delete($queue);
 close(LOG);
 }
+#code for handling non WQ based execution through MPI.
 else{
 	use Dumper::GFF::GFFV3;
 
