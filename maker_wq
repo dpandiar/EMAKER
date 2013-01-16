@@ -382,8 +382,9 @@ sub SubmitTask {
 		if($query_seq eq ""){
 			return 0; 
 		}
-		printf "Creating task %d.\n", ($counter - $OPT{size}); 
+		printf "Creating task %d.\n", $counter; 
 		my $task = work_queuec::work_queue_task_create("$command $query_seq"); 
+		work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 		print "Specifying the worker executable maker_wq_worker \n";
 		work_queuec::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 		
@@ -653,15 +654,11 @@ sub SubmitTask {
 			$seq_ids{$seq_id} = 1; 
 			###END - specifying output
 			
-			print "Specifying tag $counter \n"; 
-			work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 			$counter++; 
 		}
-		
 		$wq_time += (time - $t0); 
-		print "Created task with command: $command and counter $counter, $query_seq\n";
 		work_queuec::work_queue_submit($queue, $task);
-		print "Task submitted\n"; 
+		print "Submitted task with command: $command, query seq #:$query_seq\n";
 		return 1;
 	} else {
 		$t0 = time; 	
