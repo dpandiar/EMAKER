@@ -190,7 +190,6 @@ Work Queue Options
 #------------------------------------ MAIN -------------------------------------
 #-------------------------------------------------------------------------------
 
-
 #---global variables
 my %OPT;
 my $rank = 0;
@@ -302,9 +301,9 @@ $t0 = time;
 ## beginning of ztm's code, above is (mostly) stock
 
 use Storable qw(nstore retrieve);
+use work_queue;
 #use FindBin;                 # locate this script
 #use lib "/afs/crc.nd.edu/group/NDBL/athrash1/cctools/lib/perl5/site_perl/5.10.1/";  # use the parent directory
-use work_queue;
 #use Data::Dumper;
 
 my $bird = 0;
@@ -326,8 +325,7 @@ $command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
 #./maker_wq_worker";
 
 my $port = "9155";
-if(defined($OPT{"port"}))
-{
+if(defined($OPT{"port"})) {
 	$port = $OPT{"port"}; 
 } 
 
@@ -337,23 +335,21 @@ if(defined($OPT{"debug"})){
 	print time." :: Work Queue set debug flags \n";
 }
 
-if(defined($queue)){
-	print time." :: Work Queue Creation :: listening on port $port \n";}
-else{
+if(defined($queue)) {
+	print time." :: Work Queue Creation :: listening on port $port \n";
+} else {
 	print "Failed to create Work Queue on port $port \n"; 
 	exit(0);
 }
 
-my $multiplier = -1;
 if(defined($OPT{"fast_abort"})) {
-	$multiplier = $OPT{"fast_abort"}; 
+	my $multiplier = $OPT{"fast_abort"}; 
 	my $fa = work_queuec::work_queue_activate_fast_abort($queue, $multiplier); 
 }
 
 if(defined($OPT{"project"})) {
 	work_queuec::work_queue_specify_name($queue, $OPT{"project"});
 	work_queuec::work_queue_specify_master_mode($queue, 1);
-
 }
 
 my $tier;
@@ -375,22 +371,23 @@ sub SubmitTask {
 
 	if($OPT{size} > 1){
 		$t0 = time; 
-
-		my $t = ""; 
-		for(my $i = 1; $i <= $OPT{size}; $i++) {
-			my $val = $counter+$i-1;
-			if (! -e "$val\_todo.tier"){next;}
-			$t .= "$val "; 
+		my $query_seq = ""; 
+		for(my $i = 0; $i < $OPT{size}; $i++) {
+			my $val = $counter + $i; 
+			if (! -e "$val\_todo.tier") {
+				next;
+			}
+			$query_seq .= "$val "; 
 		}
-		if($t eq ""){
+		if($query_seq eq ""){
 			return 0; 
 		}
-		print "Creating task $counter\n"; 
-		my $task = work_queuec::work_queue_task_create("$command $t"); 
+		printf "Creating task %d.\n", ($counter - $OPT{size}); 
+		my $task = work_queuec::work_queue_task_create("$command $query_seq"); 
 		print "Specifying the worker executable maker_wq_worker \n";
 		work_queuec::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 		
-		###BEGIN - specifying the MAKER library files 
+		###specifying the MAKER library files 
 		my $lib = "$FindBin::Bin";
 		$lib =~ s/bin/lib/; 
 		if(! -e "$wkDirPrefix/lib.tar"){
@@ -398,7 +395,6 @@ sub SubmitTask {
 			`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
 		}
 		work_queuec::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
-		###END - specifying the MAKER library files 
 
 		my $inFile = $counter."_todo.tier";
 		if (! -e $inFile){next;} 
@@ -668,7 +664,7 @@ sub SubmitTask {
 		}
 		
 		$wq_time += (time - $t0); 
-		print "Created task with command: $command and counter $counter, $t\n";
+		print "Created task with command: $command and counter $counter, $query_seq\n";
 		work_queuec::work_queue_submit($queue, $task);
 		print "Task submitted\n"; 
 		return 1;
