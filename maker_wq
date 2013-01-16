@@ -13,12 +13,10 @@ use strict "vars";
 use strict "refs";
 use warnings;
 use Time::HiRes qw(gettimeofday); 
-
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
 use vars qw($RANK $LOG $CMD_ARGS);
-
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
@@ -251,25 +249,24 @@ try{
     my @ctlfiles = @ARGV;
     
     if (not @ctlfiles) {
-	if (-e "maker_opts.ctl" &&
-	    -e "maker_bopts.ctl" &&
-	    -e "maker_exe.ctl"
-	    ) {
-	    
-	    @ctlfiles = ("maker_opts.ctl",
-			 "maker_bopts.ctl",
-			 "maker_exe.ctl"
-			 );
-	}
-	else {
-	    print STDERR  "ERROR: Control files not found\n";
-	    print $usage;
-	    exit(0);
-	}
+		if (-e "maker_opts.ctl" &&
+			-e "maker_bopts.ctl" &&
+			-e "maker_exe.ctl"
+			) {
+			
+			@ctlfiles = ("maker_opts.ctl",
+				 "maker_bopts.ctl",
+				 "maker_exe.ctl"
+				 );
+		}
+		else {
+			print STDERR  "ERROR: Control files not found\n";
+			print $usage;
+			exit(0);
+		}
     }
     
     #--Control file processing
-    
     #set up control options from control files
     %CTL_OPT = GI::load_control_files(\@ctlfiles, \%OPT, $size);
     
@@ -313,7 +310,6 @@ my $tierLimit = -1; #100;
 
 ## @INC is modified at top of script
 my $command = "";
-
 $wkDirPrefix = cwd();
 chomp($wkDirPrefix); 
 $wkDirPrefix =~ s/\n//g;
@@ -328,25 +324,21 @@ my $port = "9155";
 if(defined($OPT{"port"})) {
 	$port = $OPT{"port"}; 
 } 
-
-my $queue = work_queue::work_queue_create($port);
 if(defined($OPT{"debug"})){
 	work_queue::cctools_debug_flags_set($OPT{"debug"}); 
 	print time." :: Work Queue set debug flags \n";
 }
-
+my $queue = work_queue::work_queue_create($port);
 if(defined($queue)) {
 	print time." :: Work Queue Creation :: listening on port $port \n";
 } else {
 	print "Failed to create Work Queue on port $port \n"; 
 	exit(0);
 }
-
 if(defined($OPT{"fast_abort"})) {
 	my $multiplier = $OPT{"fast_abort"}; 
 	my $fa = work_queue::work_queue_activate_fast_abort($queue, $multiplier); 
 }
-
 if(defined($OPT{"project"})) {
 	work_queue::work_queue_specify_name($queue, $OPT{"project"});
 	work_queue::work_queue_specify_master_mode($queue, 1);
@@ -1248,7 +1240,6 @@ while(!work_queue::work_queue_empty($queue)) {
 
 #make sure teh datastore directory actually exists prior to moving output into it. 
 #if (!-e $datastore){`mkdir $datastore`;}
-
 #move each of the output files into its correct place in the datastore
 #foreach my $key (sort keys %seq_ids){
 #	print "Moving $key to $datastore\n"; 
@@ -1269,7 +1260,6 @@ close(LOG);
 #code for handling non WQ based execution through MPI.
 else{
 	#use Dumper::GFF::GFFV3;
-
 	my $tier;
 	my $f_count = @failed;
 	while (my $fasta = $iterator->nextFasta() || shift @failed){
