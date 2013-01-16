@@ -667,6 +667,8 @@ sub SubmitTask {
 		### ztm :: new task, set its I/O parms
 		print "Creating task $counter\n"; 
 		my $task = work_queuec::work_queue_task_create("$command $counter"); 
+		print "Specifying tag $counter \n"; 
+		work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 		print "Specifying input $wkDirPrefix$inFile\n";
 		work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
@@ -691,6 +693,13 @@ sub SubmitTask {
 		#$tier holds all of the information for the task; 
 		my $tier = ${retrieve($inFile)};
 		submit_edb_input_files($task,$tier);	
+		submit_pdb_input_files($task,$tier);	
+		submit_ddb_input_files($task,$tier);	
+		submit_rdb_input_files($task,$tier);	
+		submit_adb_input_files($task,$tier);	
+		submit_input_files($task,$tier);	
+		submit_executable_files($task,$tier);	
+		configure_remote_execution($tier);	
 		#if (defined $tier->CTL_OPT->{e_db}){
 		#	my @ests = @{$tier->CTL_OPT->{e_db}};
 		#	for(my $i = 0; $i < scalar(@ests); $i++){
@@ -708,7 +717,6 @@ sub SubmitTask {
 		#	$tier->CTL_OPT->{e_db} = \@ests;
 		#}
 
-		submit_pdb_input_files($task,$tier);	
 		#if (defined $tier->CTL_OPT->{p_db}){ 
 		#	my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
 		#	for(my $i = 0; $i < scalar(@proteins); $i++){
@@ -723,7 +731,6 @@ sub SubmitTask {
 		#	$tier->CTL_OPT->{p_db} = \@proteins; 
 		#}
 
-		submit_ddb_input_files($task,$tier);	
 		#if (defined $tier->CTL_OPT->{d_db}){
 		#	my @d = @{$tier->CTL_OPT->{d_db}}; 	
 		#	for(my $i = 0; $i < scalar(@d); $i++){
@@ -738,7 +745,6 @@ sub SubmitTask {
 		#	$tier->CTL_OPT->{d_db} = \@d; 
 		#}
 
-		submit_rdb_input_files($task,$tier);	
 		#if (defined $tier->CTL_OPT->{r_db}){
 		#	my @r = @{$tier->CTL_OPT->{r_db}}; 	
 		#	for(my $i = 0; $i < scalar(@r); $i++){
@@ -752,7 +758,6 @@ sub SubmitTask {
 		#	}
 		#}
 
-		submit_adb_input_files($task,$tier);	
 		#if (defined $tier->CTL_OPT->{a_db}){
 		#	my @a = @{$tier->CTL_OPT->{a_db}}; 	
 		#	for(my $i = 0; $i < scalar(@a); $i++){
@@ -768,7 +773,6 @@ sub SubmitTask {
 
 		#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
 		#instead we'll just transfer the files and let each worker index them if they'd like
-		submit_input_files($task,$tier);	
 		#my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
 		#foreach my $input (@inputs){
 		#	my $file = $tier->CTL_OPT->{$input}; 
@@ -783,7 +787,6 @@ sub SubmitTask {
 		###END - specifying input variables 
 
 		###BEGIN - transfer executables to the worker
-		submit_executable_files($task,$tier);	
 		#my @files = ('snaphmm',  'SEEN_file', 'rmlib');
 		#foreach my $x (@files){ 
 		#	my $file = $tier->CTL_OPT->{$x}; 
@@ -840,8 +843,6 @@ sub SubmitTask {
 		###BEGIN - changing paths to force the workers to run things in the local directory 
 		#hopefully we can make the log file reside on the remote machine
 		#print STDERR "HERE:\n";	
-		configure_remote_execution($tier);	
-		my $root = $tier->DS_CTL->{root}; 
 		#$tier->CTL_OPT->{out_name} = "."; 
 		#$tier->CTL_OPT->{out_base} = "."; 
 		#$tier->CTL_OPT->{the_void} = ".";
@@ -858,6 +859,7 @@ sub SubmitTask {
 		#$tier->GFF_DB->{dbfile} = "./";
 		#$tier->CTL_OPT->{_TMP} = "./";  
 		###END - changing paths
+		my $root = $tier->DS_CTL->{root}; 
 
 		#store the modified variables to the tier file that will be transmitted to the workers	
 		nstore \$tier, ($inFile);
@@ -891,14 +893,9 @@ sub SubmitTask {
 		$seq_ids{$seq_id} = 1; 
 		###END - specifying output
 
-		print "Specifying tag $counter \n"; 
-		work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 		$wq_time += (time - $t0); 
-		print "Submitting the task\n"; 
 		work_queuec::work_queue_submit($queue, $task);
-		print "Task submitted\n"; 
-		print "Created task with command: $command and counter $counter\n";
-		print "Task data: $wkDirPrefix$inFile\n"; 
+		print "Submitted task with command: $command and counter $counter\n";
 		return 1;
 	}
 }
