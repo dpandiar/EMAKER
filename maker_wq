@@ -919,7 +919,7 @@ sub BuildSubmit {
 
 sub GenTiers {
 	## $iterator et. al. implicitly global
-	print "Generating Tiers\n";
+	print time." :: Generating serialized tier inputs \n";
 	my $tier;
 	my $numTiers = 0;
 	while (my $fasta = $iterator->nextFasta() ) {
@@ -1133,7 +1133,6 @@ sub configure_remote_execution {
 
 $wq_time += (time - $t0); 
 
-print time." :: Generating serialized tier inputs \n";
 $t0 = time; 
 $highestTier = GenTiers();
 $maker_time += (time - $t0); 
@@ -1170,23 +1169,23 @@ while(!work_queuec::work_queue_empty($queue)) {
 	my $e2 = $t4 - $t3;
 	my $stats = new work_queue::work_queue_stats();
 	work_queue::work_queue_get_stats($queue, $stats); 	
-	my $init = work_queue::work_queue_stats::swig_workers_init_get($stats);
-	my $ready = work_queue::work_queue_stats::swig_workers_ready_get($stats); 
-	my $busy = work_queue::work_queue_stats::swig_workers_busy_get($stats);
-	my $running = work_queue::work_queue_stats::swig_tasks_running_get($stats);
-	my $waiting = work_queue::work_queue_stats::swig_tasks_waiting_get($stats); 
-	my $complete = work_queue::work_queue_stats::swig_tasks_complete_get($stats);
-	my $tdispatched = work_queue::work_queue_stats::swig_total_tasks_dispatched_get($stats);
-	my $tcomplete = $tiersTerm; #work_queuec::work_queue_stats::swig_total_tasks_complete_get($stats);
-	my $tjoined = work_queue::work_queue_stats::swig_total_workers_joined_get($stats);
-	my $tremoved = work_queue::work_queue_stats::swig_total_workers_removed_get($stats); 
-	my $tsent = "0";
-	my $treceived = "0"; 
+	my $w_init = $stats->{workers_init}; #work_queue::work_queue_stats::swig_workers_init_get($stats);
+	my $w_ready = $stats->{workers_ready}; #work_queue::work_queue_stats::swig_workers_ready_get($stats); 
+	my $w_busy = $stats->{workers_busy}; #work_queue::work_queue_stats::swig_workers_busy_get($stats);
+	my $t_running = $stats->{tasks_running}; #work_queue::work_queue_stats::swig_tasks_running_get($stats);
+	my $t_waiting = $stats->{tasks_waiting}; #work_queue::work_queue_stats::swig_tasks_waiting_get($stats); 
+	my $t_complete = $stats->{tasks_complete}; #work_queue::work_queue_stats::swig_tasks_complete_get($stats);
+	my $total_t_dispatched = $stats->{total_tasks_dispatched}; #work_queue::work_queue_stats::swig_total_tasks_dispatched_get($stats);
+	my $total_t_complete = $stats->{total_tasks_complete}; #$tiersTerm; #work_queuec::work_queue_stats::swig_total_tasks_complete_get($stats);
+	my $total_w_joined = $stats->{total_workers_joined}; #work_queue::work_queue_stats::swig_total_workers_joined_get($stats);
+	my $total_w_removed = $stats->{total_workers_removed}; #work_queue::work_queue_stats::swig_total_workers_removed_get($stats); 
+	my $total_bytes_sent = $stats->{total_bytes_sent}; #"0";
+	my $total_bytes_recvd = $stats->{total_bytes_received}; #"0"; 
 	
 	my ($seconds,$microseconds) = gettimeofday; 
 	if($seconds - $old_seconds > 5){ 
-		print LOG "$seconds.$microseconds $init $ready $busy $running $waiting $complete $tdispatched $tcomplete $tjoined $tremoved $tsent $treceived\n";
-		print "$seconds.$microseconds $init $ready $busy $running $waiting $complete $tdispatched $tcomplete $tjoined $tremoved $tsent $treceived\n";
+		print LOG "$seconds.$microseconds $w_init $w_ready $w_busy $t_running $t_waiting $t_complete $total_t_dispatched $total_t_complete $total_w_joined $total_w_removed $total_bytes_sent $total_bytes_recvd\n";
+		#print "$seconds.$microseconds $init $ready $busy $running $waiting $complete $tdispatched $tcomplete $tjoined $tremoved $tsent $treceived\n";
 		$old_seconds = $seconds;
 	}
 
