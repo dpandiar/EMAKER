@@ -1164,9 +1164,6 @@ while(!work_queue::work_queue_empty($queue)) {
 		#print "Perl PID: $pid\n"; 
 	#}
 	my $t = work_queue::work_queue_wait($queue, 5); # wait 30 seconds
-	my($t2, $t4) = gettimeofday;
-	my $e = $t2 - $t1;
-	my $e2 = $t4 - $t3;
 	my $stats = new work_queue::work_queue_stats();
 	work_queue::work_queue_get_stats($queue, $stats); 	
 	my $w_init = $stats->{workers_init}; #work_queue::work_queue_stats::swig_workers_init_get($stats);
@@ -1204,7 +1201,6 @@ while(!work_queue::work_queue_empty($queue)) {
 			$retStatus = substr($output, $retStatus+5, 2);
 			$retStatus = sprintf("%d", $retStatus);
 		}
-		
 		print time." :: ".sprintf("%5d", $counter)." :: \n";
 		
 		### the hopeful, successful ending
