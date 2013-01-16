@@ -396,32 +396,28 @@ sub SubmitTask {
 		}
 		work_queuec::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
-		my $inFile = $counter."_todo.tier";
-		if (! -e $inFile){next;} 
-		### ztm :: new task, set its I/O parms
-		print "Specifying input $wkDirPrefix$inFile\n";
-		work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
-
-		###BEGIN - specifying the input files 
+		###specify the input files 
 		#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
 		#$tier holds all of the information for the task; 
+		my $inFile = $counter."_todo.tier";
 		my $tier = ${retrieve($inFile)};
-		submit_edb_input_files($task,$tier);
-		submit_pdb_input_files($task,$tier);	
-		submit_ddb_input_files($task,$tier);	
-		submit_rdb_input_files($task,$tier);	
-		submit_adb_input_files($task,$tier);	
+		submit_edb_input_files($task, $tier);
+		submit_pdb_input_files($task, $tier);	
+		submit_ddb_input_files($task, $tier);	
+		submit_rdb_input_files($task, $tier);	
+		submit_adb_input_files($task, $tier);	
 		submit_input_files($task, $tier);	
 		submit_executable_files($task, $tier);	
 		configure_remote_execution($tier);	
 		
 		for(my $i = 1; $i <= $OPT{size}; $i++){
 		
-			#my $inFile = $counter."_todo.tier";
-			#if (! -e $inFile){next;} 
-			#### ztm :: new task, set its I/O parms
-			#print "Specifying input $wkDirPrefix$inFile\n";
-			#work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+			$inFile = $counter."_todo.tier";
+			if (! -e $inFile){
+				next;
+			} 
+			print "Specifying input $wkDirPrefix$inFile\n";
+			work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
 			####BEGIN - specifying the input files 
 			##TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
@@ -606,7 +602,6 @@ sub SubmitTask {
 			###BEGIN - changing paths to force the workers to run things in the local directory 
 			#hopefully we can make the log file reside on the remote machine
 			#configure_remote_execution($tier);	
-			my $root = $tier->DS_CTL->{root}; 
 			#$tier->CTL_OPT->{out_name} = "."; 
 			#$tier->CTL_OPT->{out_base} = "."; 
 			#$tier->CTL_OPT->{the_void} = ".";
@@ -623,6 +618,7 @@ sub SubmitTask {
 			#$tier->GFF_DB->{dbfile} = "./";
 			#$tier->CTL_OPT->{_TMP} = "./";  
 			###END - changing paths
+			my $root = $tier->DS_CTL->{root}; 
 		
 			#store the modified variables to the tier file that will be transmitted to the workers	
 			nstore \$tier, ($inFile);
@@ -639,12 +635,12 @@ sub SubmitTask {
 			print "Specifying output: $seq_id, $newfile\n";  
 			
 			my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
-			if ($ds_flag){
+			if ($ds_flag) {
 				use Digest::MD5 qw(md5_hex);
 		
-				my $dir = "";#Datastore::MD5::id_to_dir($seq_id);
-				my($digest) = uc md5_hex($seq_id); # the hex string, uppercased
-				for(my $j = 0; $j < 2; $j++){
+				my $dir = ""; #Datastore::MD5::id_to_dir($seq_id);
+				my($digest) = uc md5_hex($seq_id); #the hex string, uppercased
+				for(my $j = 0; $j < 2; $j++) {
 					$dir .= substr($digest, $i*2, 2) ."/";
 				}
 				$dir .= $seq_id . "/";
@@ -658,7 +654,6 @@ sub SubmitTask {
 			###END - specifying output
 			
 			print "Specifying tag $counter \n"; 
-			#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 			$counter++; 
 		}
