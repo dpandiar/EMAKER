@@ -329,9 +329,9 @@ if(defined($OPT{"port"})) {
 	$port = $OPT{"port"}; 
 } 
 
-my $queue = work_queuec::work_queue_create($port);
+my $queue = work_queue::work_queue_create($port);
 if(defined($OPT{"debug"})){
-	work_queuec::cctools_debug_flags_set($OPT{"debug"}); 
+	work_queue::cctools_debug_flags_set($OPT{"debug"}); 
 	print time." :: Work Queue set debug flags \n";
 }
 
@@ -344,12 +344,12 @@ if(defined($queue)) {
 
 if(defined($OPT{"fast_abort"})) {
 	my $multiplier = $OPT{"fast_abort"}; 
-	my $fa = work_queuec::work_queue_activate_fast_abort($queue, $multiplier); 
+	my $fa = work_queue::work_queue_activate_fast_abort($queue, $multiplier); 
 }
 
 if(defined($OPT{"project"})) {
-	work_queuec::work_queue_specify_name($queue, $OPT{"project"});
-	work_queuec::work_queue_specify_master_mode($queue, 1);
+	work_queue::work_queue_specify_name($queue, $OPT{"project"});
+	work_queue::work_queue_specify_master_mode($queue, 1);
 }
 
 my $tier;
@@ -383,10 +383,10 @@ sub SubmitTask {
 			return 0; 
 		}
 		printf "Creating task %d.\n", $counter; 
-		my $task = work_queuec::work_queue_task_create("$command $query_seq"); 
-		work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
+		my $task = work_queue::work_queue_task_create("$command $query_seq"); 
+		work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 		print "Specifying the worker executable maker_wq_worker \n";
-		work_queuec::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
+		work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 		
 		###specifying the MAKER library files 
 		my $lib = "$FindBin::Bin";
@@ -395,7 +395,7 @@ sub SubmitTask {
 			print "Tarring lib files\n";
 			`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
 		}
-		work_queuec::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
+		work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
 		###specify the input files 
 		#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
@@ -418,7 +418,7 @@ sub SubmitTask {
 				next;
 			} 
 			print "Specifying input $wkDirPrefix$inFile\n";
-			work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+			work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
 			####BEGIN - specifying the input files 
 			##TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
@@ -439,7 +439,7 @@ sub SubmitTask {
 			#		@fields = split(/\//, $file);
 			#		my $newfile = $fields[scalar(@fields) - 1];
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
 			#		if ($#fields > 1) {
 			#			print STDERR "Rewriting $file to $newfile\n"; 
 			#			$ests[$j] = $newfile;  
@@ -462,7 +462,7 @@ sub SubmitTask {
 			#		@fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1]; 
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			#		if ($#fields > 1){
 			#			$proteins[$j] = $newfile; 
 			#		}
@@ -484,7 +484,7 @@ sub SubmitTask {
 			#		@fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1]; 
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			#		if ($#fields > 1){
 			#			$d[$j] = $newfile; 
 			#		}
@@ -506,7 +506,7 @@ sub SubmitTask {
 			#		@fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1]; 
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			#		if ($#fields > 1){
 			#			$r[$j] = $newfile; 
 			#		}
@@ -527,7 +527,7 @@ sub SubmitTask {
 			#		@fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1]; 
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			#		
 			#		if ($#fields > 1){
 			#			$a[$j] = $newfile; 
@@ -548,7 +548,7 @@ sub SubmitTask {
 			#	if(-e $file){
 			#		$file = abs_path($file); 
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+			#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
 			#	}
 			#	$tier->CTL_OPT->{$input} = $newfile; 
 			#}
@@ -564,7 +564,7 @@ sub SubmitTask {
 			#	if(-e $file){
 			#		$file = abs_path($file); 
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+			#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
 			#		$tier->CTL_OPT->{$x} = "./$newfile"; 
 			#	}
 			#}	 
@@ -592,7 +592,7 @@ sub SubmitTask {
 			#		}
 			#		print STDERR "Specifying file: $prefix with remote name $v\n";  
 			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+			#		work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 			#		print STDERR "Rewriting $file to $folder/$newfile\n"; 
 			#		$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
 		
@@ -646,10 +646,10 @@ sub SubmitTask {
 				}
 				$dir .= $seq_id . "/";
 				print "Directory from MD5 = $dir, from $seq_id\n";  
-				work_queuec::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
+				work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
 			}
 			else {
-				work_queuec::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
+				work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 			}
 			$seq_ids{$seq_id} = 1; 
 			###END - specifying output
@@ -657,7 +657,7 @@ sub SubmitTask {
 			$counter++; 
 		}
 		$wq_time += (time - $t0); 
-		work_queuec::work_queue_submit($queue, $task);
+		work_queue::work_queue_submit($queue, $task);
 		print "Submitted task with command: $command, query seq #:$query_seq\n";
 		return 1;
 	} else {
@@ -666,15 +666,15 @@ sub SubmitTask {
 		
 		### ztm :: new task, set its I/O parms
 		print "Creating task $counter\n"; 
-		my $task = work_queuec::work_queue_task_create("$command $counter"); 
+		my $task = work_queue::work_queue_task_create("$command $counter"); 
 		print "Specifying tag $counter \n"; 
-		work_queuec::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
+		work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 		print "Specifying input $wkDirPrefix$inFile\n";
-		work_queuec::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+		work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
 		print "Specifying the worker executable maker_wq_worker \n";
 
-		work_queuec::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
+		work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 
 		###BEGIN - specifying the MAKER library files 
 		print "Specifying library files\n"; 
@@ -684,7 +684,7 @@ sub SubmitTask {
 			print "Tarring lib/ \n"; 
 			`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
 		}
-		work_queuec::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
+		work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 		###END - specifying the MAKER library files 
 
 		###BEGIN - specifying the input files 
@@ -710,7 +710,7 @@ sub SubmitTask {
 		#		my @fields = split(/\//, $file); 
 		#		my $newfile = $fields[scalar(@fields) - 1];
 		#		#print "File: $task, $file, $newfile\n";  
-		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
 		#		print STDERR "Rewriting $file to $newfile\n"; 
 		#		$ests[$i] = $newfile;  
 		#	}
@@ -725,7 +725,7 @@ sub SubmitTask {
 	
 		#		my @fields = split(/\//, $file); 
 		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 		#		$proteins[$i] = $newfile; 
 		#	}
 		#	$tier->CTL_OPT->{p_db} = \@proteins; 
@@ -739,7 +739,7 @@ sub SubmitTask {
 		#
 		#		my @fields = split(/\//, $file); 
 		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 		#		$d[$i] = $newfile; 
 		#	}
 		#	$tier->CTL_OPT->{d_db} = \@d; 
@@ -753,7 +753,7 @@ sub SubmitTask {
 	
 		#		my @fields = split(/\//, $file); 
 		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 		#		$r[$i] = $newfile; 
 		#	}
 		#}
@@ -765,7 +765,7 @@ sub SubmitTask {
 		#		$file = abs_path($file); 
 		#		my @fields = split(/\//, $file); 
 		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 		#		$a[$i] = $newfile; 
 		#	}
 		#	$tier->CTL_OPT->{a_db} = \@a; 
@@ -780,7 +780,7 @@ sub SubmitTask {
 		#	my $newfile = $fields[scalar(@fields) - 1]; 
 		#	if(-e $file){
 		#		$file = abs_path($file); 
-		#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+		#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
 		#	}
 		#	$tier->CTL_OPT->{$input} = $newfile; 
 		#}
@@ -794,7 +794,7 @@ sub SubmitTask {
 		#	my $newfile = $fields[scalar(@fields) - 1]; 
 		#	if(-e $file) {
 		#		$file = abs_path($file); 
-		#		work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+		#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
 		#		$tier->CTL_OPT->{$x} = "./$newfile"; 
 		#	}
 		#}	 
@@ -808,7 +808,7 @@ sub SubmitTask {
 
 #	foreach my $newfile (@pms){             
 #		$file = $prefix."/$newfile"; 
-#	work_queuec::work_queue_task_specify_input_file($task, $file, "./"); 
+#	work_queue::work_queue_task_specify_input_file($task, $file, "./"); 
 #	}
 		#my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
 
@@ -831,8 +831,8 @@ sub SubmitTask {
 		#			my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
 		#		}
 		#		print STDERR "Specifying file: $prefix with remote name $v\n";  
-		#		#work_queuec::work_queue_task_specify_file($task, $prefix, $v, 0, 1);
-		#		work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+		#		#work_queue::work_queue_task_specify_file($task, $prefix, $v, 0, 1);
+		#		work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 		#		#$tier->CTL_OPT->{$v} = "$v/$newfile"; 
 		#		print STDERR "Rewriting $file to $folder/$newfile\n"; 
 		#		$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
@@ -885,16 +885,16 @@ sub SubmitTask {
 			}
 			$dir .= $seq_id . "/";
 			print "Directory from MD5 = $dir, from $seq_id\n";  
-			work_queuec::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
+			work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
 		}
 		else{
-			work_queuec::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
+			work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 		}
 		$seq_ids{$seq_id} = 1; 
 		###END - specifying output
 
 		$wq_time += (time - $t0); 
-		work_queuec::work_queue_submit($queue, $task);
+		work_queue::work_queue_submit($queue, $task);
 		print "Submitted task with command: $command and counter $counter\n";
 		return 1;
 	}
@@ -952,7 +952,7 @@ sub submit_edb_input_files {
 	
 			@fields = split(/\//, $file);
 			my $newfile = $fields[scalar(@fields) - 1];
-			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
 			if ($#fields > 1) {
 				print STDERR "Rewriting $file to $newfile\n"; 
 				$ests[$j] = $newfile;  
@@ -976,7 +976,7 @@ sub submit_pdb_input_files {
 	
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			if ($#fields > 1){
 				$proteins[$j] = $newfile; 
 			}
@@ -999,7 +999,7 @@ sub submit_ddb_input_files {
 
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			if ($#fields > 1){
 				$d[$j] = $newfile; 
 			}
@@ -1022,7 +1022,7 @@ sub submit_rdb_input_files {
 	
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			if ($#fields > 1){
 				$r[$j] = $newfile; 
 			}
@@ -1044,7 +1044,7 @@ sub submit_adb_input_files {
 			}
 			@fields = split(/\//, $file); 
 			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queuec::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			
 			if ($#fields > 1){
 				$a[$j] = $newfile; 
@@ -1064,7 +1064,7 @@ sub submit_input_files {
 		my $newfile = $fields[scalar(@fields) - 1]; 
 		if(-e $file){
 			$file = abs_path($file); 
-			work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+			work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
 		}
 		$tier->CTL_OPT->{$input} = $newfile; 
 	}
@@ -1079,7 +1079,7 @@ sub submit_executable_files($task, $tier) {
 		my $newfile = $fields[scalar(@fields) - 1]; 
 		if(-e $file){
 			$file = abs_path($file); 
-			work_queuec::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+			work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
 			$tier->CTL_OPT->{$x} = "./$newfile"; 
 		}
 
@@ -1107,7 +1107,7 @@ sub submit_executable_files($task, $tier) {
 				my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
 			}
 			print STDERR "Specifying file: $prefix with remote name $v\n";  
-			work_queuec::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+			work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 			$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
 		}
 	}
@@ -1151,7 +1151,7 @@ open(LOG, ">>", "logfile");
 print LOG "#start\n";
 my $old_seconds = 0;
 my %failures; 
-while(!work_queuec::work_queue_empty($queue)) {
+while(!work_queue::work_queue_empty($queue)) {
 	my($t1, $t3) = gettimeofday;	
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
@@ -1163,7 +1163,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 		#kill(9, $pid); 
 		#print "Perl PID: $pid\n"; 
 	#}
-	my $t = work_queuec::work_queue_wait($queue, 5); # wait 30 seconds
+	my $t = work_queue::work_queue_wait($queue, 5); # wait 30 seconds
 	my($t2, $t4) = gettimeofday;
 	my $e = $t2 - $t1;
 	my $e2 = $t4 - $t3;
@@ -1176,7 +1176,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 	my $t_waiting = $stats->{tasks_waiting}; #work_queue::work_queue_stats::swig_tasks_waiting_get($stats); 
 	my $t_complete = $stats->{tasks_complete}; #work_queue::work_queue_stats::swig_tasks_complete_get($stats);
 	my $total_t_dispatched = $stats->{total_tasks_dispatched}; #work_queue::work_queue_stats::swig_total_tasks_dispatched_get($stats);
-	my $total_t_complete = $stats->{total_tasks_complete}; #$tiersTerm; #work_queuec::work_queue_stats::swig_total_tasks_complete_get($stats);
+	my $total_t_complete = $stats->{total_tasks_complete}; #$tiersTerm; #work_queue::work_queue_stats::swig_total_tasks_complete_get($stats);
 	my $total_w_joined = $stats->{total_workers_joined}; #work_queue::work_queue_stats::swig_total_workers_joined_get($stats);
 	my $total_w_removed = $stats->{total_workers_removed}; #work_queue::work_queue_stats::swig_total_workers_removed_get($stats); 
 	my $total_bytes_sent = $stats->{total_bytes_sent}; #"0";
@@ -1212,7 +1212,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 			$tiersTerm++;
 			print "finished tier $counter, $tiersTerm done so far \n";
 			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
-			work_queuec::work_queue_task_delete($t);
+			work_queue::work_queue_task_delete($t);
 		}
 		### tier resubmission on failure
 		else {
@@ -1233,7 +1233,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 				print "completed, not terminated $counter, returned $retStatus\n";
 			}
 			if($failures{$counter} < 5){
-				work_queuec::work_queue_submit($queue, $t);
+				work_queue::work_queue_submit($queue, $t);
 			}
 			else{
 				print "Task $counter has failed too many times\n"; 
@@ -1244,7 +1244,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 	} else { #
 	}
 	
-	while ( work_queuec::work_queue_hungry($queue) && $tierCtr < $highestTier) { # while
+	while ( work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { # while
 		print ":: hungry, submitting $tierCtr \n";
 		BuildSubmit(1);
 	}
@@ -1267,7 +1267,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
 print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
  
-work_queuec::work_queue_delete($queue);
+work_queue::work_queue_delete($queue);
 close(LOG);
 }
 #code for handling non WQ based execution through MPI.
