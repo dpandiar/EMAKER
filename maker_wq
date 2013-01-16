@@ -1133,21 +1133,20 @@ sub configure_remote_execution {
 
 $wq_time += (time - $t0); 
 
-print time." :: Work Queue is generating serialized tier inputs \n";
+print time." :: Generating serialized tier inputs \n";
 $t0 = time; 
 $highestTier = GenTiers();
 $maker_time += (time - $t0); 
 
 $t0 = time; 
-print time." :: highest input generated was $highestTier \n";
+print time." :: Highest input generated was $highestTier \n";
 
 # generate and submit however many tiers (should ideally match number of workers) to start with
 $initialSubmit = $highestTier / 100;
-print "Submitting \n"; 
 $wq_time += (time - $t0); 
 
 BuildSubmit($initialSubmit);
-print "Work Queue :: initial submission :: $initialSubmit tiers \n";
+print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 
 open(LOG, ">>", "logfile"); 
 print LOG "#start\n";
@@ -1156,7 +1155,6 @@ my %failures;
 while(!work_queuec::work_queue_empty($queue)) {
 	my($t1, $t3) = gettimeofday;	
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
-	#print "Killing zombie maker proc\n"; 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 	#my $pid = `ps x | grep [m]aintain | cut -f1`;
 	#print "Perl Maintain.pl pid is: $pid\n";	
@@ -1169,7 +1167,7 @@ while(!work_queuec::work_queue_empty($queue)) {
 	my $t = work_queuec::work_queue_wait($queue, 5); # wait 30 seconds
 	my($t2, $t4) = gettimeofday;
 	my $e = $t2 - $t1;
-	my $e2 = $t4-$t3;
+	my $e2 = $t4 - $t3;
 	my $stats = new work_queue::work_queue_stats();
 	work_queue::work_queue_get_stats($queue, $stats); 	
 	my $init = work_queue::work_queue_stats::swig_workers_init_get($stats);
@@ -1179,11 +1177,11 @@ while(!work_queuec::work_queue_empty($queue)) {
 	my $waiting = work_queue::work_queue_stats::swig_tasks_waiting_get($stats); 
 	my $complete = work_queue::work_queue_stats::swig_tasks_complete_get($stats);
 	my $tdispatched = work_queue::work_queue_stats::swig_total_tasks_dispatched_get($stats);
-	my $tcomplete = $tiersTerm;#work_queuec::work_queue_stats::swig_total_tasks_complete_get($stats);
+	my $tcomplete = $tiersTerm; #work_queuec::work_queue_stats::swig_total_tasks_complete_get($stats);
 	my $tjoined = work_queue::work_queue_stats::swig_total_workers_joined_get($stats);
 	my $tremoved = work_queue::work_queue_stats::swig_total_workers_removed_get($stats); 
-	my $tsent = "0";# = work_queuec::work_queue_stats::;
-	my $treceived = "0";# = work_queuec::work_queue_stats::;
+	my $tsent = "0";
+	my $treceived = "0"; 
 	
 	my ($seconds,$microseconds) = gettimeofday; 
 	if($seconds - $old_seconds > 5){ 
