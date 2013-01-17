@@ -313,7 +313,6 @@ if($OPT{wq}) {
 	}
 
 	my $initialSubmit = 10;
-	my $tier;
 	my $fasta;
 	my $highestTier;
 	my $tierCtr = 0;
