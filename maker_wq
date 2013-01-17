@@ -1138,14 +1138,11 @@ if($OPT{wq}) {
 		if(defined($t)) {
 			$t0 = time; 
 			print "Task defined\n";
-			my $counter = work_queue::work_queue_task::swig_tag_get($t);
-			my $output = work_queue::work_queue_task::swig_output_get($t);
-			my $host = work_queue::work_queue_task::swig_host_get($t);
-			### swig doesn't provide the correct retcode; this is a kludge...
+			my $counter = $t->{tag}; #work_queue::work_queue_task::swig_tag_get($t);
+			my $output = $t->{output}; #work_queue::work_queue_task::swig_output_get($t);
 			my $retStatus; 
-			
 			$retStatus = index($output, "EXIT:");
-			if ( $retStatus != -1){
+			if ($retStatus != -1) {
 				$retStatus = substr($output, $retStatus+5, 2);
 				$retStatus = sprintf("%d", $retStatus);
 			}
@@ -1157,9 +1154,7 @@ if($OPT{wq}) {
 				print "finished tier $counter, $tiersTerm done so far \n";
 				unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 				work_queue::work_queue_task_delete($t);
-			}
-			### tier resubmission on failure
-			else {
+			} else { ### tier resubmission on failure 
 				### save the worker's output for later dissection
 				$/ = "";
 
@@ -1171,24 +1166,21 @@ if($OPT{wq}) {
 					### if it failed, we want to force recomputation
 					$tier->CTL_OPT->{ 'force' } = 1; 
 					nstore \$tier, ($counter."_todo.tier");
-				}
-				### general completion
-				else { 
+				} else { 
+					### general completion
 					print "completed, not terminated $counter, returned $retStatus\n";
 				}
 				if($failures{$counter} < 5){
 					work_queue::work_queue_submit($queue, $t);
-				}
-				else{
+				} else{
 					print "Task $counter has failed too many times\n"; 
 				}
-
 			}
 			$process_output_time += (time - $t0); 
 		} else { #
 		}
 		
-		while ( work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { # while
+		while (work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { 
 			print ":: hungry, submitting $tierCtr \n";
 			BuildSubmit(1);
 		}
