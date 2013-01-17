@@ -1205,10 +1205,9 @@ if($OPT{wq}) {
 	close(LOG);
 	print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
 } else{ #code for handling non WQ based execution through MPI.
-	my $tier;
 	my $f_count = @failed;
 	while (my $fasta = $iterator->nextFasta() || shift @failed){
-	    $tier = Process::MpiTiers->new({fasta =>$fasta,
+	    my $tier = Process::MpiTiers->new({fasta =>$fasta,
 					    CTL_OPT => \%CTL_OPT,
 					    DS_CTL  => $DS_CTL,
 					    GFF_DB  => $GFF_DB,
