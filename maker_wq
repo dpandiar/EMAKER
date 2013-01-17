@@ -286,23 +286,6 @@ if($OPT{wq}) {
 	#use lib "/afs/crc.nd.edu/group/NDBL/athrash1/cctools/lib/perl5/site_perl/5.10.1/";  # use the parent directory
 	#use Data::Dumper;
 
-	my $bird = 0;
-	my $wkDirPrefix;
-	my $initialSubmit = 10;
-	my $tierLimit = -1; #100;
-
-	## @INC is modified at top of script
-	my $command = "";
-	$wkDirPrefix = cwd();
-	chomp($wkDirPrefix); 
-	$wkDirPrefix =~ s/\n//g;
-	$wkDirPrefix .= "/";
-
-	$command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
-	./maker_wq_worker";
-	#$command .= "find -name \"*.tar\" -exec tar -x --skip-old-files -f {} \\\;
-	#./maker_wq_worker";
-
 	my $port = "9155";
 	if(defined($OPT{"port"})) {
 		$port = $OPT{"port"}; 
@@ -329,6 +312,7 @@ if($OPT{wq}) {
 		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
 
+	my $initialSubmit = 10;
 	my $tier;
 	my $fasta;
 	my $highestTier;
@@ -336,6 +320,15 @@ if($OPT{wq}) {
 	my $tiersTerm = 0;
 	my %seq_ids = {}; 
 	my $datastore = $DS_CTL->{root}; 
+	my $wkDirPrefix;
+	$wkDirPrefix = cwd();
+	chomp($wkDirPrefix); 
+	$wkDirPrefix =~ s/\n//g;
+	$wkDirPrefix .= "/";
+	my $command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
+	./maker_wq_worker";
+	#$command .= "find -name \"*.tar\" -exec tar -x --skip-old-files -f {} \\\;
+	#./maker_wq_worker";
 
 	if(!-e $datastore) {
 		`mkdir $datastore`;
