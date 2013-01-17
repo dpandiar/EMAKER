@@ -1187,7 +1187,7 @@ while(!work_queue::work_queue_empty($queue)) {
 			if($retStatus == -1) {
 				print "failed, resubmitting tier $counter\n";
 				$failures{$counter} += 1; 
-				$tier = ${retrieve($counter."_todo.tier")};
+				my $tier = ${retrieve($counter."_todo.tier")};
 				
 				### if it failed, we want to force recomputation
 				$tier->CTL_OPT->{ 'force' } = 1; 
