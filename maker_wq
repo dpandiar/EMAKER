@@ -1144,7 +1144,6 @@ if($OPT{wq}) {
 				$retStatus = substr($output, $retStatus+5, 2);
 				$retStatus = sprintf("%d", $retStatus);
 			}
-			print time." :: ".sprintf("%5d", $counter)." :: \n";
 			
 			### the hopeful, successful ending
 			if($retStatus == 1 || $retStatus == 0) {
