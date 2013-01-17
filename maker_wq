@@ -349,6 +349,7 @@ if($OPT{wq}) {
 			if($query_seq eq ""){
 				return 0; 
 			}
+			print time." :: Creating task# $counter\n";  
 			my $task = work_queue::work_queue_task_create("$command $query_seq"); 
 			work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
 			print time." :: Specifying input for task# $counter\n";  
@@ -856,22 +857,20 @@ if($OPT{wq}) {
 		}
 	}
 
-sub BuildSubmit {
-	$t0 = time; 
-	## pull $tierCtr implicitly from the global scope
-	my($howManyMore) = @_;
-	
-	my $highLimit = $tierCtr + $howManyMore;
-	$wq_time += (time - $t0); 
-	while( $tierCtr < $highLimit ) {
-		#used to do work of GenTiers() here, on the fly. now is all done at beginning
-		print "Entering submit task with parameter $tierCtr\n"; 	
-		SubmitTask($tierCtr);
+	sub BuildSubmit {
 		$t0 = time; 
-		$tierCtr += $OPT{size};
+		## pull $tierCtr implicitly from the global scope
+		my($howManyMore) = @_;
+		
+		my $highLimit = $tierCtr + $howManyMore;
 		$wq_time += (time - $t0); 
+		while( $tierCtr < $highLimit ) {
+			SubmitTask($tierCtr);
+			$t0 = time; 
+			$tierCtr += $OPT{size};
+			$wq_time += (time - $t0); 
+		}
 	}
-}
 
 sub GenTiers {
 	## $iterator et. al. implicitly global
