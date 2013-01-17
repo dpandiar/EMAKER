@@ -599,7 +599,7 @@ if($OPT{wq}) {
 				my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 				my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
 				my $newfile = $root."/$seq_id";
-				print time." :: Specifying output for task# $counter\n";  
+				print time." :: Specifying output for task# ", $task->{tag}, "\n";  
 				
 				my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
 				if ($ds_flag) {
@@ -832,7 +832,7 @@ if($OPT{wq}) {
 			my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
 			my $newfile = $root."/$seq_id";
 			my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
-			print time." :: Specifying output for task# $counter\n";  
+			print time." :: Specifying output for task# ", $task->{tag}, "\n";  
 			if ($ds_flag){
 				use Digest::MD5 qw(md5_hex);
 
