@@ -1,3 +1,4 @@
 1. Clean up the print statements
 2. Merge the cases for handling a single seq per task and multiple seq per task
 3. Create and store tier files in its own directory.
+4. Remove all swig references.

@@ -892,198 +892,198 @@ if($OPT{wq}) {
 		return $numTiers;
 	}
 
-sub submit_edb_input_files {
-	my($task, $tier) = @_;
-	if (defined $tier->CTL_OPT->{e_db}){
-		my @ests = @{$tier->CTL_OPT->{e_db}};
-		for(my $j = 0; $j < scalar(@ests); $j++){
-			my $file = $ests[$j]; 
-			print STDERR "EST file: $file\n"; 
-			my @fields = split(/\//, $file);
-			if ($#fields > 1){
-				$file = abs_path($file); 
+	sub submit_edb_input_files {
+		my($task, $tier) = @_;
+		if (defined $tier->CTL_OPT->{e_db}){
+			my @ests = @{$tier->CTL_OPT->{e_db}};
+			for(my $j = 0; $j < scalar(@ests); $j++){
+				my $file = $ests[$j]; 
+				print STDERR "EST file: $file\n"; 
+				my @fields = split(/\//, $file);
+				if ($#fields > 1){
+					$file = abs_path($file); 
+				}
+		
+				@fields = split(/\//, $file);
+				my $newfile = $fields[scalar(@fields) - 1];
+				work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+				if ($#fields > 1) {
+					print STDERR "Rewriting $file to $newfile\n"; 
+					$ests[$j] = $newfile;  
+				}
 			}
-	
-			@fields = split(/\//, $file);
-			my $newfile = $fields[scalar(@fields) - 1];
-			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
-			if ($#fields > 1) {
-				print STDERR "Rewriting $file to $newfile\n"; 
-				$ests[$j] = $newfile;  
-			}
+			$tier->CTL_OPT->{e_db} = \@ests;
 		}
-		$tier->CTL_OPT->{e_db} = \@ests;
 	}
-}
 
-sub submit_pdb_input_files {
-	my($task, $tier) = @_;
-	if (defined $tier->CTL_OPT->{p_db}){ 
-		my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
-		for(my $j = 0; $j < scalar(@proteins); $j++){
-			my $file = $proteins[$j];
-			my @fields = split(/\//, $file);
+	sub submit_pdb_input_files {
+		my($task, $tier) = @_;
+		if (defined $tier->CTL_OPT->{p_db}){ 
+			my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
+			for(my $j = 0; $j < scalar(@proteins); $j++){
+				my $file = $proteins[$j];
+				my @fields = split(/\//, $file);
 
-			if ($#fields > 1){
-				$file = abs_path($file); 
+				if ($#fields > 1){
+					$file = abs_path($file); 
+				}
+		
+				@fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				if ($#fields > 1){
+					$proteins[$j] = $newfile; 
+				}
 			}
-	
-			@fields = split(/\//, $file); 
-			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			if ($#fields > 1){
-				$proteins[$j] = $newfile; 
-			}
-		}
-		$tier->CTL_OPT->{p_db} = \@proteins; 
-	}	
-}
-
-sub submit_ddb_input_files {
-	my($task, $tier) = @_;
-	if (defined $tier->CTL_OPT->{d_db}){
-		my @d = @{$tier->CTL_OPT->{d_db}}; 	
-		for(my $j = 0; $j < scalar(@d); $j++){
-			my $file = $d[$j]; 
-			my @fields = split(/\//, $file);
-
-			if ($#fields > 1){
-				$file = abs_path($file); 
-			}
-
-			@fields = split(/\//, $file); 
-			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			if ($#fields > 1){
-				$d[$j] = $newfile; 
-			}
-		}
-		$tier->CTL_OPT->{d_db} = \@d; 
-	}		
-}
-
-sub submit_rdb_input_files {
-	my($task, $tier) = @_;
-	if (defined $tier->CTL_OPT->{r_db}){
-		my @r = @{$tier->CTL_OPT->{r_db}}; 	
-		for(my $j = 0; $j < scalar(@r); $j++){
-			my $file = $r[$j]; 
-			my @fields = split(/\//, $file);
-
-			if ($#fields > 1){
-				$file = abs_path($file); 
-			}
-	
-			@fields = split(/\//, $file); 
-			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			if ($#fields > 1){
-				$r[$j] = $newfile; 
-			}
-		}
-		$tier->CTL_OPT->{r_db} = \@r; 
+			$tier->CTL_OPT->{p_db} = \@proteins; 
+		}	
 	}
-}
 
-sub submit_adb_input_files {
-	my($task, $tier) = @_;
-	if (defined $tier->CTL_OPT->{a_db}){
-		my @a = @{$tier->CTL_OPT->{a_db}}; 	
-		for(my $j = 0; $j < scalar(@a); $j++){
-			my $file = $a[$j];
-			my @fields = split(/\//, $file);
+	sub submit_ddb_input_files {
+		my($task, $tier) = @_;
+		if (defined $tier->CTL_OPT->{d_db}){
+			my @d = @{$tier->CTL_OPT->{d_db}}; 	
+			for(my $j = 0; $j < scalar(@d); $j++){
+				my $file = $d[$j]; 
+				my @fields = split(/\//, $file);
 
-			if ($#fields > 1){
-				$file = abs_path($file); 
+				if ($#fields > 1){
+					$file = abs_path($file); 
+				}
+
+				@fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				if ($#fields > 1){
+					$d[$j] = $newfile; 
+				}
 			}
-			@fields = split(/\//, $file); 
-			my $newfile = $fields[scalar(@fields) - 1]; 
-			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			
-			if ($#fields > 1){
-				$a[$j] = $newfile; 
-			}
-		}
-		$tier->CTL_OPT->{a_db} = \@a; 
+			$tier->CTL_OPT->{d_db} = \@d; 
+		}		
 	}
-}
 
-sub submit_input_files {
-	my($task, $tier) = @_;
-	my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
-	foreach my $input (@inputs){
-		if (! defined $tier->CTL_OPT->{$input}){next;}
-		my $file = $tier->CTL_OPT->{$input}; 
-		my @fields = split(/\//, $file); 
-		my $newfile = $fields[scalar(@fields) - 1]; 
-		if(-e $file){
+	sub submit_rdb_input_files {
+		my($task, $tier) = @_;
+		if (defined $tier->CTL_OPT->{r_db}){
+			my @r = @{$tier->CTL_OPT->{r_db}}; 	
+			for(my $j = 0; $j < scalar(@r); $j++){
+				my $file = $r[$j]; 
+				my @fields = split(/\//, $file);
+
+				if ($#fields > 1){
+					$file = abs_path($file); 
+				}
+		
+				@fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				if ($#fields > 1){
+					$r[$j] = $newfile; 
+				}
+			}
+			$tier->CTL_OPT->{r_db} = \@r; 
+		}
+	}
+
+	sub submit_adb_input_files {
+		my($task, $tier) = @_;
+		if (defined $tier->CTL_OPT->{a_db}){
+			my @a = @{$tier->CTL_OPT->{a_db}}; 	
+			for(my $j = 0; $j < scalar(@a); $j++){
+				my $file = $a[$j];
+				my @fields = split(/\//, $file);
+
+				if ($#fields > 1){
+					$file = abs_path($file); 
+				}
+				@fields = split(/\//, $file); 
+				my $newfile = $fields[scalar(@fields) - 1]; 
+				work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				
+				if ($#fields > 1){
+					$a[$j] = $newfile; 
+				}
+			}
+			$tier->CTL_OPT->{a_db} = \@a; 
+		}
+	}
+
+	sub submit_input_files {
+		my($task, $tier) = @_;
+		my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
+		foreach my $input (@inputs){
+			if (! defined $tier->CTL_OPT->{$input}){next;}
+			my $file = $tier->CTL_OPT->{$input}; 
+			my @fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			if(-e $file){
+				$file = abs_path($file); 
+				work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+			}
+			$tier->CTL_OPT->{$input} = $newfile; 
+		}
+	}
+
+	sub submit_executable_files($task, $tier) {	
+		my($task, $tier) = @_;
+		my @files = ('snaphmm',  'SEEN_file', 'rmlib');
+		foreach my $x (@files){ 
+			my $file = $tier->CTL_OPT->{$x}; 
+			my @fields = split(/\//, $file); 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			if(-e $file){
+				$file = abs_path($file); 
+				work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+				$tier->CTL_OPT->{$x} = "./$newfile"; 
+			}
+
+		}	 
+		
+		my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+		foreach my $v (@execs){
+			my $file = $tier->CTL_OPT->{$v}; 
+			if (! -e $file){
+				next;
+			}
 			$file = abs_path($file); 
-			work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
-		}
-		$tier->CTL_OPT->{$input} = $newfile; 
-	}
-}
+			print STDERR "Abs_path: $file\n"; 
 
-sub submit_executable_files($task, $tier) {	
-	my($task, $tier) = @_;
-	my @files = ('snaphmm',  'SEEN_file', 'rmlib');
-	foreach my $x (@files){ 
-		my $file = $tier->CTL_OPT->{$x}; 
-		my @fields = split(/\//, $file); 
-		my $newfile = $fields[scalar(@fields) - 1]; 
-		if(-e $file){
-			$file = abs_path($file); 
-			work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
-			$tier->CTL_OPT->{$x} = "./$newfile"; 
-		}
-
-	}	 
-	
-	my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
-	foreach my $v (@execs){
-		my $file = $tier->CTL_OPT->{$v}; 
-		if (! -e $file){
-			next;
-		}
-		$file = abs_path($file); 
-		print STDERR "Abs_path: $file\n"; 
-
-		my @fields = split(/\//, $file); 
-		my $prefix = ""; 
-		for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
-			$prefix .= "/".$fields[$j];
-		}
-		my $newfile = $fields[scalar(@fields) - 1]; 
-		my $folder = $fields[scalar(@fields) - 2]; 
-		if(-e $file){
-			if (! -e "$v.tar"){
-				print STDERR "Running tar -cf $v.tar $prefix\n"; 
-				my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+			my @fields = split(/\//, $file); 
+			my $prefix = ""; 
+			for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
+				$prefix .= "/".$fields[$j];
 			}
-			print STDERR "Specifying file: $prefix with remote name $v\n";  
-			work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
-			$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
+			my $newfile = $fields[scalar(@fields) - 1]; 
+			my $folder = $fields[scalar(@fields) - 2]; 
+			if(-e $file){
+				if (! -e "$v.tar"){
+					print STDERR "Running tar -cf $v.tar $prefix\n"; 
+					my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+				}
+				print STDERR "Specifying file: $prefix with remote name $v\n";  
+				work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+				$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
+			}
 		}
 	}
-}
 
-sub configure_remote_execution {
-	my($tier) = @_;
-	$tier->CTL_OPT->{out_name} = "."; 
-	$tier->CTL_OPT->{out_base} = "."; 
-	$tier->CTL_OPT->{the_void} = ".";
-	my $file = $tier->DS_CTL->{log}; 
-	my @fields = split(/\//, $file);
-	$file = $fields[scalar(@fields) - 1]; 
-	$tier->DS_CTL->{log} = "./$file"; 
-	my $root = $tier->DS_CTL->{root}; 
-	$tier->DS_CTL->{root} = "./"; 
-	$tier->DS_CTL->{ds_object}->{_root} = "./"; 
-	$tier->{the_void} = "."; 
-	$tier->CTL_OPT->{CWD} = ".";  
-	$tier->GFF_DB->{dbfile} = "./";
-	$tier->CTL_OPT->{_TMP} = "./";  
-}
+	sub configure_remote_execution {
+		my($tier) = @_;
+		$tier->CTL_OPT->{out_name} = "."; 
+		$tier->CTL_OPT->{out_base} = "."; 
+		$tier->CTL_OPT->{the_void} = ".";
+		my $file = $tier->DS_CTL->{log}; 
+		my @fields = split(/\//, $file);
+		$file = $fields[scalar(@fields) - 1]; 
+		$tier->DS_CTL->{log} = "./$file"; 
+		my $root = $tier->DS_CTL->{root}; 
+		$tier->DS_CTL->{root} = "./"; 
+		$tier->DS_CTL->{ds_object}->{_root} = "./"; 
+		$tier->{the_void} = "."; 
+		$tier->CTL_OPT->{CWD} = ".";  
+		$tier->GFF_DB->{dbfile} = "./";
+		$tier->CTL_OPT->{_TMP} = "./";  
+	}
 
 $wq_time += (time - $t0); 
 
