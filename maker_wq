@@ -1186,24 +1186,24 @@ if($OPT{wq}) {
 		}
 	}
 
-#make sure teh datastore directory actually exists prior to moving output into it. 
-#if (!-e $datastore){`mkdir $datastore`;}
-#move each of the output files into its correct place in the datastore
-#foreach my $key (sort keys %seq_ids){
-#	print "Moving $key to $datastore\n"; 
-#	if(ref($key) eq "HASH" || ref($key) eq "ARRAY"){
-#		next; 
-#	}
-#	if($key =~ "HASH"){next;}	
-#	`mv $key $datastore`; 
-#}
+	#make sure teh datastore directory actually exists prior to moving output into it. 
+	#if (!-e $datastore){`mkdir $datastore`;}
+	#move each of the output files into its correct place in the datastore
+	#foreach my $key (sort keys %seq_ids){
+	#	print "Moving $key to $datastore\n"; 
+	#	if(ref($key) eq "HASH" || ref($key) eq "ARRAY"){
+	#		next; 
+	#	}
+	#	if($key =~ "HASH"){next;}	
+	#	`mv $key $datastore`; 
+	#}
 
 	#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
 	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
-	print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
 	 
 	work_queue::work_queue_delete($queue);
 	close(LOG);
+	print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
 } else{ #code for handling non WQ based execution through MPI.
 	my $tier;
 	my $f_count = @failed;
