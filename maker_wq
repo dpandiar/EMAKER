@@ -1085,120 +1085,120 @@ if($OPT{wq}) {
 		$tier->CTL_OPT->{_TMP} = "./";  
 	}
 
-$wq_time += (time - $t0); 
+	$wq_time += (time - $t0); 
 
-$t0 = time; 
-$highestTier = GenTiers();
-$maker_time += (time - $t0); 
+	$t0 = time; 
+	$highestTier = GenTiers();
+	$maker_time += (time - $t0); 
 
-$t0 = time; 
-print time." :: Highest input generated was $highestTier \n";
+	$t0 = time; 
+	print time." :: Highest input generated was $highestTier \n";
 
-# generate and submit however many tiers (should ideally match number of workers) to start with
-$initialSubmit = $highestTier / 100;
-$wq_time += (time - $t0); 
+	# generate and submit however many tiers (should ideally match number of workers) to start with
+	$initialSubmit = $highestTier / 100;
+	$wq_time += (time - $t0); 
 
-BuildSubmit($initialSubmit);
-print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
+	BuildSubmit($initialSubmit);
+	print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 
-open(LOG, ">>", "logfile"); 
-print LOG "#start\n";
-my $old_seconds = 0;
-my %failures; 
-while(!work_queue::work_queue_empty($queue)) {
-	my($t1, $t3) = gettimeofday;	
-	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
-	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
-	#my $pid = `ps x | grep [m]aintain | cut -f1`;
-	#print "Perl Maintain.pl pid is: $pid\n";	
-	#kill(9,$pid);
-	#my $pid = wait(); 
-	#if($pid != -1){
-		#kill(9, $pid); 
-		#print "Perl PID: $pid\n"; 
-	#}
-	my $t = work_queue::work_queue_wait($queue, 5); # wait 30 seconds
-	my $stats = new work_queue::work_queue_stats();
-	work_queue::work_queue_get_stats($queue, $stats); 	
-	my $w_init = $stats->{workers_init}; #work_queue::work_queue_stats::swig_workers_init_get($stats);
-	my $w_ready = $stats->{workers_ready}; #work_queue::work_queue_stats::swig_workers_ready_get($stats); 
-	my $w_busy = $stats->{workers_busy}; #work_queue::work_queue_stats::swig_workers_busy_get($stats);
-	my $t_running = $stats->{tasks_running}; #work_queue::work_queue_stats::swig_tasks_running_get($stats);
-	my $t_waiting = $stats->{tasks_waiting}; #work_queue::work_queue_stats::swig_tasks_waiting_get($stats); 
-	my $t_complete = $stats->{tasks_complete}; #work_queue::work_queue_stats::swig_tasks_complete_get($stats);
-	my $total_t_dispatched = $stats->{total_tasks_dispatched}; #work_queue::work_queue_stats::swig_total_tasks_dispatched_get($stats);
-	my $total_t_complete = $stats->{total_tasks_complete}; #$tiersTerm; #work_queue::work_queue_stats::swig_total_tasks_complete_get($stats);
-	my $total_w_joined = $stats->{total_workers_joined}; #work_queue::work_queue_stats::swig_total_workers_joined_get($stats);
-	my $total_w_removed = $stats->{total_workers_removed}; #work_queue::work_queue_stats::swig_total_workers_removed_get($stats); 
-	my $total_bytes_sent = $stats->{total_bytes_sent}; #"0";
-	my $total_bytes_recvd = $stats->{total_bytes_received}; #"0"; 
-	
-	my ($seconds,$microseconds) = gettimeofday; 
-	if($seconds - $old_seconds > 5){ 
-		print LOG "$seconds.$microseconds $w_init $w_ready $w_busy $t_running $t_waiting $t_complete $total_t_dispatched $total_t_complete $total_w_joined $total_w_removed $total_bytes_sent $total_bytes_recvd\n";
-		#print "$seconds.$microseconds $init $ready $busy $running $waiting $complete $tdispatched $tcomplete $tjoined $tremoved $tsent $treceived\n";
-		$old_seconds = $seconds;
-	}
-
-	if(defined($t)) {
-		$t0 = time; 
-		print "Task defined\n";
-		my $counter = work_queue::work_queue_task::swig_tag_get($t);
-		my $output = work_queue::work_queue_task::swig_output_get($t);
-		my $host = work_queue::work_queue_task::swig_host_get($t);
-		print STDERR $output;
-		### swig doesn't provide the correct retcode; this is a kludge...
-		my $retStatus; 
+	open(LOG, ">>", "logfile"); 
+	print LOG "#start\n";
+	my $old_seconds = 0;
+	my %failures; 
+	while(!work_queue::work_queue_empty($queue)) {
+		my($t1, $t3) = gettimeofday;	
+		#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
+		Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+		#my $pid = `ps x | grep [m]aintain | cut -f1`;
+		#print "Perl Maintain.pl pid is: $pid\n";	
+		#kill(9,$pid);
+		#my $pid = wait(); 
+		#if($pid != -1){
+			#kill(9, $pid); 
+			#print "Perl PID: $pid\n"; 
+		#}
+		my $t = work_queue::work_queue_wait($queue, 5); # wait 30 seconds
+		my $stats = new work_queue::work_queue_stats();
+		work_queue::work_queue_get_stats($queue, $stats); 	
+		my $w_init = $stats->{workers_init}; #work_queue::work_queue_stats::swig_workers_init_get($stats);
+		my $w_ready = $stats->{workers_ready}; #work_queue::work_queue_stats::swig_workers_ready_get($stats); 
+		my $w_busy = $stats->{workers_busy}; #work_queue::work_queue_stats::swig_workers_busy_get($stats);
+		my $t_running = $stats->{tasks_running}; #work_queue::work_queue_stats::swig_tasks_running_get($stats);
+		my $t_waiting = $stats->{tasks_waiting}; #work_queue::work_queue_stats::swig_tasks_waiting_get($stats); 
+		my $t_complete = $stats->{tasks_complete}; #work_queue::work_queue_stats::swig_tasks_complete_get($stats);
+		my $total_t_dispatched = $stats->{total_tasks_dispatched}; #work_queue::work_queue_stats::swig_total_tasks_dispatched_get($stats);
+		my $total_t_complete = $stats->{total_tasks_complete}; #$tiersTerm; #work_queue::work_queue_stats::swig_total_tasks_complete_get($stats);
+		my $total_w_joined = $stats->{total_workers_joined}; #work_queue::work_queue_stats::swig_total_workers_joined_get($stats);
+		my $total_w_removed = $stats->{total_workers_removed}; #work_queue::work_queue_stats::swig_total_workers_removed_get($stats); 
+		my $total_bytes_sent = $stats->{total_bytes_sent}; #"0";
+		my $total_bytes_recvd = $stats->{total_bytes_received}; #"0"; 
 		
-		$retStatus = index($output, "EXIT:");
-		if ( $retStatus != -1){
-			$retStatus = substr($output, $retStatus+5, 2);
-			$retStatus = sprintf("%d", $retStatus);
+		my ($seconds,$microseconds) = gettimeofday; 
+		if($seconds - $old_seconds > 5){ 
+			print LOG "$seconds.$microseconds $w_init $w_ready $w_busy $t_running $t_waiting $t_complete $total_t_dispatched $total_t_complete $total_w_joined $total_w_removed $total_bytes_sent $total_bytes_recvd\n";
+			#print "$seconds.$microseconds $init $ready $busy $running $waiting $complete $tdispatched $tcomplete $tjoined $tremoved $tsent $treceived\n";
+			$old_seconds = $seconds;
 		}
-		print time." :: ".sprintf("%5d", $counter)." :: \n";
+
+		if(defined($t)) {
+			$t0 = time; 
+			print "Task defined\n";
+			my $counter = work_queue::work_queue_task::swig_tag_get($t);
+			my $output = work_queue::work_queue_task::swig_output_get($t);
+			my $host = work_queue::work_queue_task::swig_host_get($t);
+			print STDERR $output;
+			### swig doesn't provide the correct retcode; this is a kludge...
+			my $retStatus; 
+			
+			$retStatus = index($output, "EXIT:");
+			if ( $retStatus != -1){
+				$retStatus = substr($output, $retStatus+5, 2);
+				$retStatus = sprintf("%d", $retStatus);
+			}
+			print time." :: ".sprintf("%5d", $counter)." :: \n";
+			
+			### the hopeful, successful ending
+			if($retStatus == 1 || $retStatus == 0) {
+				$tiersTerm++;
+				print "finished tier $counter, $tiersTerm done so far \n";
+				unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
+				work_queue::work_queue_task_delete($t);
+			}
+			### tier resubmission on failure
+			else {
+				### save the worker's output for later dissection
+				$/ = "";
+
+				if($retStatus == -1) {
+					print "failed, resubmitting tier $counter\n";
+					$failures{$counter} += 1; 
+					my $tier = ${retrieve($counter."_todo.tier")};
+					
+					### if it failed, we want to force recomputation
+					$tier->CTL_OPT->{ 'force' } = 1; 
+					nstore \$tier, ($counter."_todo.tier");
+				}
+				### general completion
+				else { 
+					print "completed, not terminated $counter, returned $retStatus\n";
+				}
+				if($failures{$counter} < 5){
+					work_queue::work_queue_submit($queue, $t);
+				}
+				else{
+					print "Task $counter has failed too many times\n"; 
+				}
+
+			}
+			$process_output_time += (time - $t0); 
+		} else { #
+		}
 		
-		### the hopeful, successful ending
-		if($retStatus == 1 || $retStatus == 0) {
-			$tiersTerm++;
-			print "finished tier $counter, $tiersTerm done so far \n";
-			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
-			work_queue::work_queue_task_delete($t);
+		while ( work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { # while
+			print ":: hungry, submitting $tierCtr \n";
+			BuildSubmit(1);
 		}
-		### tier resubmission on failure
-		else {
-			### save the worker's output for later dissection
-			$/ = "";
-
-			if($retStatus == -1) {
-				print "failed, resubmitting tier $counter\n";
-				$failures{$counter} += 1; 
-				my $tier = ${retrieve($counter."_todo.tier")};
-				
-				### if it failed, we want to force recomputation
-				$tier->CTL_OPT->{ 'force' } = 1; 
-				nstore \$tier, ($counter."_todo.tier");
-			}
-			### general completion
-			else { 
-				print "completed, not terminated $counter, returned $retStatus\n";
-			}
-			if($failures{$counter} < 5){
-				work_queue::work_queue_submit($queue, $t);
-			}
-			else{
-				print "Task $counter has failed too many times\n"; 
-			}
-
-		}
-		$process_output_time += (time - $t0); 
-	} else { #
 	}
-	
-	while ( work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { # while
-		print ":: hungry, submitting $tierCtr \n";
-		BuildSubmit(1);
-	}
-}
 
 #make sure teh datastore directory actually exists prior to moving output into it. 
 #if (!-e $datastore){`mkdir $datastore`;}
@@ -1212,12 +1212,12 @@ while(!work_queue::work_queue_empty($queue)) {
 #	`mv $key $datastore`; 
 #}
 
-#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
-print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
-print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
- 
-work_queue::work_queue_delete($queue);
-close(LOG);
+	#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
+	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
+	print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
+	 
+	work_queue::work_queue_delete($queue);
+	close(LOG);
 }
 #code for handling non WQ based execution through MPI.
 else{
