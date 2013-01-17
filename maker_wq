@@ -349,10 +349,9 @@ sub SubmitTask {
 		if($query_seq eq ""){
 			return 0; 
 		}
-		printf "Creating task %d.\n", $counter; 
 		my $task = work_queue::work_queue_task_create("$command $query_seq"); 
 		work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-		print "Specifying the worker executable maker_wq_worker \n";
+		print time." :: Specifying input for task# $counter\n";  
 		work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 		
 		###specifying the MAKER library files 
@@ -384,7 +383,6 @@ sub SubmitTask {
 			if (! -e $inFile){
 				next;
 			} 
-			print "Specifying input $wkDirPrefix$inFile\n";
 			work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
 			####BEGIN - specifying the input files 
@@ -600,7 +598,7 @@ sub SubmitTask {
 			my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 			my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
 			my $newfile = $root."/$seq_id";
-			print "Specifying output: $seq_id, $newfile\n";  
+			print time." :: Specifying output for task# $counter\n";  
 			
 			my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
 			if ($ds_flag) {
@@ -614,8 +612,7 @@ sub SubmitTask {
 				$dir .= $seq_id . "/";
 				print "Directory from MD5 = $dir, from $seq_id\n";  
 				work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
-			}
-			else {
+			} else {
 				work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 			}
 			$seq_ids{$seq_id} = 1; 
