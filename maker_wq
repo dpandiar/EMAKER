@@ -3,11 +3,10 @@
 my $maker_time = 0; 
 my $wq_time = 0; 
 my $process_output_time = 0; 
-my $t0 = 0; 
+my $t0 = time; 
 
-$t0 = time;  
-eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
-    if 0; # not running under some shell
+#eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
+#    if 0; # not running under some shell
 
 use strict "vars";
 use strict "refs";
@@ -45,14 +44,12 @@ BEGIN{
    #output to log file of seq that caused rank to die
    $SIG{'__DIE__'} =
    sub {
-      if (defined ($LOG) && defined $_[0]) {
-	 my $die_count = $LOG->get_die_count();
-	 $die_count++;
-	 
-	 $LOG->add_entry("DIED","RANK",$RANK);
-	 $LOG->add_entry("DIED","COUNT",$die_count);
+		if (defined ($LOG) && defined $_[0]) {
+			my $die_count = $LOG->get_die_count();
+			$die_count++;
+			$LOG->add_entry("DIED","RANK",$RANK);
+			$LOG->add_entry("DIED","COUNT",$die_count);
       }
-
       die $_[0]."\n".
 	  "FATAL ERROR\n";
    };
