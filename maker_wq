@@ -334,9 +334,7 @@ if($OPT{wq}) {
 	}
 
 sub SubmitTask {
-	$t0 = time; 
 	my($counter) = @_;
-	$wq_time += (time - $t0); 
 
 	if($OPT{size} > 1){
 		$t0 = time; 
