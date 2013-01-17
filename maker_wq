@@ -188,8 +188,8 @@ Work Queue Options
 #---global variables
 my %OPT;
 my $rank = 0;
+$RANK = $rank; #what is this used for?
 my $size = 1;
-$RANK = $rank;
 #\$OPT{size} = 1;
  
 #---Process options on the command line 
@@ -221,10 +221,8 @@ try{
 	       );
 
     $main::quiet = 1 if($main::qq);
-}
-catch Error::Simple with{
+} catch Error::Simple with{
     my $E = shift;
-    
     print STDERR $E->{-text};
     die "\n\nMaker failed parsing command line options!!\n\n" if();
 };
@@ -246,17 +244,9 @@ try{
     my @ctlfiles = @ARGV;
     
     if (not @ctlfiles) {
-		if (-e "maker_opts.ctl" &&
-			-e "maker_bopts.ctl" &&
-			-e "maker_exe.ctl"
-			) {
-			
-			@ctlfiles = ("maker_opts.ctl",
-				 "maker_bopts.ctl",
-				 "maker_exe.ctl"
-				 );
-		}
-		else {
+		if (-e "maker_opts.ctl" && -e "maker_bopts.ctl" && -e "maker_exe.ctl") {
+			@ctlfiles = ("maker_opts.ctl", "maker_bopts.ctl", "maker_exe.ctl");
+		} else {
 			print STDERR  "ERROR: Control files not found\n";
 			print $usage;
 			exit(0);
@@ -276,11 +266,8 @@ try{
     $build = $GFF_DB->next_build;
     
     #---load genome multifasta/GFF3 file
-    $iterator = new Iterator::Any( -fasta => $CTL_OPT{'genome'},
-				   -gff => $CTL_OPT{'genome_gff'},
-				   );
-}
-catch Error::Simple with{
+    $iterator = new Iterator::Any( -fasta => $CTL_OPT{'genome'}, -gff => $CTL_OPT{'genome_gff'},);
+} catch Error::Simple with{
     my $E = shift;
     print STDERR $E->{-text};
     my $code = 2;
