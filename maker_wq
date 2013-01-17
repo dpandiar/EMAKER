@@ -872,26 +872,25 @@ if($OPT{wq}) {
 		}
 	}
 
-sub GenTiers {
-	## $iterator et. al. implicitly global
-	print time." :: Generating serialized tier inputs \n";
-	my $tier;
-	my $numTiers = 0;
-	while (my $fasta = $iterator->nextFasta() ) {
-		$tier = Process::MpiTiers->new({fasta =>$fasta,
-		    CTL_OPT => \%CTL_OPT,
-		    DS_CTL  => $DS_CTL,
-		    GFF_DB  => $GFF_DB,
-		    build   => $build},
-		   '0',
-		   'Process::MpiChunk'
-		   );
-		nstore \$tier, ($numTiers."_todo.tier");
-		#print Dumper($tier); 		
-		$numTiers++;
+	sub GenTiers {
+		## $iterator is implicitly global
+		print time." :: Generating serialized tier inputs \n";
+		my $tier;
+		my $numTiers = 0;
+		while (my $fasta = $iterator->nextFasta() ) {
+			$tier = Process::MpiTiers->new({fasta =>$fasta,
+				CTL_OPT => \%CTL_OPT,
+				DS_CTL  => $DS_CTL,
+				GFF_DB  => $GFF_DB,
+				build   => $build},
+			   '0',
+			   'Process::MpiChunk'
+			   );
+			nstore \$tier, ($numTiers."_todo.tier");
+			$numTiers++;
+		}
+		return $numTiers;
 	}
-	return $numTiers;
-}
 
 sub submit_edb_input_files {
 	my($task, $tier) = @_;
