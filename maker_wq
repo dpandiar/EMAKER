@@ -1218,10 +1218,7 @@ if($OPT{wq}) {
 	 
 	work_queue::work_queue_delete($queue);
 	close(LOG);
-}
-#code for handling non WQ based execution through MPI.
-else{
-	#use Dumper::GFF::GFFV3;
+} else{ #code for handling non WQ based execution through MPI.
 	my $tier;
 	my $f_count = @failed;
 	while (my $fasta = $iterator->nextFasta() || shift @failed){
