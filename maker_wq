@@ -898,7 +898,6 @@ if($OPT{wq}) {
 			my @ests = @{$tier->CTL_OPT->{e_db}};
 			for(my $j = 0; $j < scalar(@ests); $j++){
 				my $file = $ests[$j]; 
-				print STDERR "EST file: $file\n"; 
 				my @fields = split(/\//, $file);
 				if ($#fields > 1){
 					$file = abs_path($file); 
@@ -908,7 +907,6 @@ if($OPT{wq}) {
 				my $newfile = $fields[scalar(@fields) - 1];
 				work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
 				if ($#fields > 1) {
-					print STDERR "Rewriting $file to $newfile\n"; 
 					$ests[$j] = $newfile;  
 				}
 			}
@@ -1046,7 +1044,6 @@ if($OPT{wq}) {
 				next;
 			}
 			$file = abs_path($file); 
-			print STDERR "Abs_path: $file\n"; 
 
 			my @fields = split(/\//, $file); 
 			my $prefix = ""; 
@@ -1057,10 +1054,8 @@ if($OPT{wq}) {
 			my $folder = $fields[scalar(@fields) - 2]; 
 			if(-e $file){
 				if (! -e "$v.tar"){
-					print STDERR "Running tar -cf $v.tar $prefix\n"; 
 					my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
 				}
-				print STDERR "Specifying file: $prefix with remote name $v\n";  
 				work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 				$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
 			}
@@ -1146,7 +1141,6 @@ if($OPT{wq}) {
 			my $counter = work_queue::work_queue_task::swig_tag_get($t);
 			my $output = work_queue::work_queue_task::swig_output_get($t);
 			my $host = work_queue::work_queue_task::swig_host_get($t);
-			print STDERR $output;
 			### swig doesn't provide the correct retcode; this is a kludge...
 			my $retStatus; 
 			
@@ -1243,7 +1237,7 @@ if($OPT{wq}) {
 	    push(@failed, $tier->fasta) if ($tier->failed);
 	}
 }
-print STDERR "\n\nMaker is now finished!!!\n\n" unless($main::qq);
+print time."\n\nMaker is now finished!!!\n\n" unless($main::qq);
 
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
