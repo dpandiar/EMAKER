@@ -333,207 +333,442 @@ if($OPT{wq}) {
 		`mkdir $datastore`;
 	}
 
-sub SubmitTask {
-	my($counter) = @_;
+	sub SubmitTask {
+		my($counter) = @_;
 
-	if($OPT{size} > 1){
-		$t0 = time; 
-		my $query_seq = ""; 
-		for(my $i = 0; $i < $OPT{size}; $i++) {
-			my $val = $counter + $i; 
-			if (! -e "$val\_todo.tier") {
-				next;
+		if($OPT{size} > 1){
+			$t0 = time; 
+			my $query_seq = ""; 
+			for(my $i = 0; $i < $OPT{size}; $i++) {
+				my $val = $counter + $i; 
+				if (! -e "$val\_todo.tier") {
+					next;
+				}
+				$query_seq .= "$val "; 
 			}
-			$query_seq .= "$val "; 
-		}
-		if($query_seq eq ""){
-			return 0; 
-		}
-		my $task = work_queue::work_queue_task_create("$command $query_seq"); 
-		work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-		print time." :: Specifying input for task# $counter\n";  
-		work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
-		
-		###specifying the MAKER library files 
-		my $lib = "$FindBin::Bin";
-		$lib =~ s/bin/lib/; 
-		if(! -e "$wkDirPrefix/lib.tar"){
-			print "Tarring lib files\n";
-			`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
-		}
-		work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
+			if($query_seq eq ""){
+				return 0; 
+			}
+			my $task = work_queue::work_queue_task_create("$command $query_seq"); 
+			work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
+			print time." :: Specifying input for task# $counter\n";  
+			work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
+			
+			###specifying the MAKER library files 
+			my $lib = "$FindBin::Bin";
+			$lib =~ s/bin/lib/; 
+			if(! -e "$wkDirPrefix/lib.tar"){
+				print "Tarring lib files\n";
+				`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
+			}
+			work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
-		###specify the input files 
-		#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
-		#$tier holds all of the information for the task; 
-		my $inFile = $counter."_todo.tier";
-		my $tier = ${retrieve($inFile)};
-		submit_edb_input_files($task, $tier);
-		submit_pdb_input_files($task, $tier);	
-		submit_ddb_input_files($task, $tier);	
-		submit_rdb_input_files($task, $tier);	
-		submit_adb_input_files($task, $tier);	
-		submit_input_files($task, $tier);	
-		submit_executable_files($task, $tier);	
-		configure_remote_execution($tier);	
-		
-		for(my $i = 1; $i <= $OPT{size}; $i++){
-		
-			$inFile = $counter."_todo.tier";
-			if (! -e $inFile){
-				next;
-			} 
+			###specify the input files 
+			#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
+			#$tier holds all of the information for the task; 
+			my $inFile = $counter."_todo.tier";
+			my $tier = ${retrieve($inFile)};
+			submit_edb_input_files($task, $tier);
+			submit_pdb_input_files($task, $tier);	
+			submit_ddb_input_files($task, $tier);	
+			submit_rdb_input_files($task, $tier);	
+			submit_adb_input_files($task, $tier);	
+			submit_input_files($task, $tier);	
+			submit_executable_files($task, $tier);	
+			configure_remote_execution($tier);	
+			
+			for(my $i = 1; $i <= $OPT{size}; $i++){
+			
+				$inFile = $counter."_todo.tier";
+				if (! -e $inFile){
+					next;
+				} 
+				work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+
+				####BEGIN - specifying the input files 
+				##TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
+				#print "Specifying all of the necessary files to run the workers locally\n"; 
+				##$tier holds all of the information for the task; 
+				#my $tier = ${retrieve($inFile)};
+				#submit_edb_input_files($task,$tier);	
+				#if (defined $tier->CTL_OPT->{e_db}){
+				#	my @ests = @{$tier->CTL_OPT->{e_db}};
+				#	for(my $j = 0; $j < scalar(@ests); $j++){
+				#		my $file = $ests[$j]; 
+				#		print STDERR "EST file: $file\n"; 
+				#		my @fields = split(/\//, $file);
+				#		if ($#fields > 1){
+				#			$file = abs_path($file); 
+				#		}
+				#
+				#		@fields = split(/\//, $file);
+				#		my $newfile = $fields[scalar(@fields) - 1];
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
+				#		if ($#fields > 1) {
+				#			print STDERR "Rewriting $file to $newfile\n"; 
+				#			$ests[$j] = $newfile;  
+				#		}
+				#	}
+				#	$tier->CTL_OPT->{e_db} = \@ests;
+				#}
+			
+				#submit_pdb_input_files($task,$tier);	
+				#if (defined $tier->CTL_OPT->{p_db}){ 
+				#	my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
+				#	for(my $j = 0; $j < scalar(@proteins); $j++){
+				#		my $file = $proteins[$j];
+				#		my @fields = split(/\//, $file);
+
+				#		if ($#fields > 1){
+				#			$file = abs_path($file); 
+				#		}
+				#
+				#		@fields = split(/\//, $file); 
+				#		my $newfile = $fields[scalar(@fields) - 1]; 
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				#		if ($#fields > 1){
+				#			$proteins[$j] = $newfile; 
+				#		}
+				#	}
+				#	$tier->CTL_OPT->{p_db} = \@proteins; 
+				#}
+			
+				#submit_ddb_input_files($task,$tier);	
+				#if (defined $tier->CTL_OPT->{d_db}){
+				#	my @d = @{$tier->CTL_OPT->{d_db}}; 	
+				#	for(my $j = 0; $j < scalar(@d); $j++){
+				#		my $file = $d[$j]; 
+				#		my @fields = split(/\//, $file);
+
+				#		if ($#fields > 1){
+				#			$file = abs_path($file); 
+				#		}
+			
+				#		@fields = split(/\//, $file); 
+				#		my $newfile = $fields[scalar(@fields) - 1]; 
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				#		if ($#fields > 1){
+				#			$d[$j] = $newfile; 
+				#		}
+				#	}
+				#	$tier->CTL_OPT->{d_db} = \@d; 
+				#}
+			
+				#submit_rdb_input_files($task,$tier);	
+				#if (defined $tier->CTL_OPT->{r_db}){
+				#	my @r = @{$tier->CTL_OPT->{r_db}}; 	
+				#	for(my $j = 0; $j < scalar(@r); $j++){
+				#		my $file = $r[$j]; 
+				#		my @fields = split(/\//, $file);
+
+				#		if ($#fields > 1){
+				#			$file = abs_path($file); 
+				#		}
+				#
+				#		@fields = split(/\//, $file); 
+				#		my $newfile = $fields[scalar(@fields) - 1]; 
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				#		if ($#fields > 1){
+				#			$r[$j] = $newfile; 
+				#		}
+				#	}
+				#	$tier->CTL_OPT->{r_db} = \@r; 
+				#}
+			
+				#submit_adb_input_files($task,$tier);	
+				#if (defined $tier->CTL_OPT->{a_db}){
+				#	my @a = @{$tier->CTL_OPT->{a_db}}; 	
+				#	for(my $j = 0; $j < scalar(@a); $j++){
+				#		my $file = $a[$j];
+				#		my @fields = split(/\//, $file);
+
+				#		if ($#fields > 1){
+				#			$file = abs_path($file); 
+				#		}
+				#		@fields = split(/\//, $file); 
+				#		my $newfile = $fields[scalar(@fields) - 1]; 
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+				#		
+				#		if ($#fields > 1){
+				#			$a[$j] = $newfile; 
+				#		}
+				#	}
+				#	$tier->CTL_OPT->{a_db} = \@a; 
+				#}
+			
+				#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
+				#instead we'll just transfer the files and let each worker index them if they'd like
+				#submit_input_files($task, $tier);	
+				#my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
+				#foreach my $input (@inputs){
+				#	if (! defined $tier->CTL_OPT->{$input}){next;}
+				#	my $file = $tier->CTL_OPT->{$input}; 
+				#	my @fields = split(/\//, $file); 
+				#	my $newfile = $fields[scalar(@fields) - 1]; 
+				#	if(-e $file){
+				#		$file = abs_path($file); 
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+				#	}
+				#	$tier->CTL_OPT->{$input} = $newfile; 
+				#}
+				###END - specifying input variables 
+			
+				###BEGIN - transfer executables to the worker
+				#submit_executable_files($task, $tier);	
+				#my @files = ('snaphmm',  'SEEN_file', 'rmlib');
+				#foreach my $x (@files){ 
+				#	my $file = $tier->CTL_OPT->{$x}; 
+				#	my @fields = split(/\//, $file); 
+				#	my $newfile = $fields[scalar(@fields) - 1]; 
+				#	if(-e $file){
+				#		$file = abs_path($file); 
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+				#		$tier->CTL_OPT->{$x} = "./$newfile"; 
+				#	}
+				#}	 
+				#my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+				#foreach my $v (@execs){
+				#	my $file = $tier->CTL_OPT->{$v}; 
+				#	if (! -e $file){
+				#		next;
+				#	}
+				#	print STDERR "File: $file\n"; 
+				#	$file = abs_path($file); 
+				#	print STDERR "Abs_path: $file\n"; 
+			
+				#	my @fields = split(/\//, $file); 
+				#	my $prefix = ""; 
+				#	for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
+				#		$prefix .= "/".$fields[$j];
+				#	}
+				#	my $newfile = $fields[scalar(@fields) - 1]; 
+				#	my $folder = $fields[scalar(@fields) - 2]; 
+				#	if(-e $file){
+				#		if (! -e "$v.tar"){
+				#			print STDERR "Running tar -cf $v.tar $prefix\n"; 
+				#			my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+				#		}
+				#		print STDERR "Specifying file: $prefix with remote name $v\n";  
+				#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+				#		work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+				#		print STDERR "Rewriting $file to $folder/$newfile\n"; 
+				#		$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
+			
+				#	}
+				#}
+				###END - transfer executables to the worker
+			
+				###BEGIN - changing paths to force the workers to run things in the local directory 
+				#hopefully we can make the log file reside on the remote machine
+				#configure_remote_execution($tier);	
+				#$tier->CTL_OPT->{out_name} = "."; 
+				#$tier->CTL_OPT->{out_base} = "."; 
+				#$tier->CTL_OPT->{the_void} = ".";
+				#my $file = $tier->DS_CTL->{log}; 
+				#my @fields = split(/\//, $file);
+				#$file = $fields[scalar(@fields) - 1]; 
+				#$tier->DS_CTL->{log} = "./$file"; 
+				#my $root = $tier->DS_CTL->{root}; 
+				##print "Root: $root\n"; 
+				#$tier->DS_CTL->{root} = "./"; 
+				#$tier->DS_CTL->{ds_object}->{_root} = "./"; 
+				#$tier->{the_void} = "."; 
+				#$tier->CTL_OPT->{CWD} = ".";  
+				#$tier->GFF_DB->{dbfile} = "./";
+				#$tier->CTL_OPT->{_TMP} = "./";  
+				###END - changing paths
+				my $root = $tier->DS_CTL->{root}; 
+			
+				#store the modified variables to the tier file that will be transmitted to the workers	
+				nstore \$tier, ($inFile);
+			
+				###BEGIN - specifying output
+				#need to know the remote directory name, this is generated from the sequence header
+				if(!exists($tier->{VARS}->{fasta})){
+					print "Fasta doesn't exist\n"; 
+				}
+				my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
+				my $q_def = Fasta::getDef(\$fasta); #Get fasta header
+				my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
+				my $newfile = $root."/$seq_id";
+				print time." :: Specifying output for task# $counter\n";  
+				
+				my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
+				if ($ds_flag) {
+					use Digest::MD5 qw(md5_hex);
+			
+					my $dir = ""; #Datastore::MD5::id_to_dir($seq_id);
+					my($digest) = uc md5_hex($seq_id); #the hex string, uppercased
+					for(my $j = 0; $j < 2; $j++) {
+						$dir .= substr($digest, $i*2, 2) ."/";
+					}
+					$dir .= $seq_id . "/";
+					print "Directory from MD5 = $dir, from $seq_id\n";  
+					work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
+				} else {
+					work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
+				}
+				$seq_ids{$seq_id} = 1; 
+				###END - specifying output
+				
+				$counter++; 
+			}
+			$wq_time += (time - $t0); 
+			work_queue::work_queue_submit($queue, $task);
+			time.print time." :: submitted task with command: $command, query seq #:$query_seq\n";
+			return 1;
+		} else {
+			$t0 = time; 	
+			my $inFile = $counter."_todo.tier";
+			
+			### ztm :: new task, set its I/O parms
+			my $task = work_queue::work_queue_task_create("$command $counter"); 
+			work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
+			print time." :: Specifying input for task# $counter\n";  
+			work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 			work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
-			####BEGIN - specifying the input files 
-			##TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
-			#print "Specifying all of the necessary files to run the workers locally\n"; 
-			##$tier holds all of the information for the task; 
-			#my $tier = ${retrieve($inFile)};
-			#submit_edb_input_files($task,$tier);	
+			###BEGIN - specifying the MAKER library files 
+			my $lib = "$FindBin::Bin";
+			$lib =~ s/bin/lib/; 
+			if(! -e "$wkDirPrefix/lib.tar"){
+				print "Tarring lib/ \n"; 
+				`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
+			}
+			work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
+			###END - specifying the MAKER library files 
+
+			###BEGIN - specifying the input files 
+			#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
+			#$tier holds all of the information for the task; 
+			my $tier = ${retrieve($inFile)};
+			submit_edb_input_files($task,$tier);	
+			submit_pdb_input_files($task,$tier);	
+			submit_ddb_input_files($task,$tier);	
+			submit_rdb_input_files($task,$tier);	
+			submit_adb_input_files($task,$tier);	
+			submit_input_files($task,$tier);	
+			submit_executable_files($task,$tier);	
+			configure_remote_execution($tier);	
 			#if (defined $tier->CTL_OPT->{e_db}){
 			#	my @ests = @{$tier->CTL_OPT->{e_db}};
-			#	for(my $j = 0; $j < scalar(@ests); $j++){
-			#		my $file = $ests[$j]; 
-			#		print STDERR "EST file: $file\n"; 
-			#		my @fields = split(/\//, $file);
-			#		if ($#fields > 1){
-			#			$file = abs_path($file); 
-			#		}
-			#
-			#		@fields = split(/\//, $file);
+			#	for(my $i = 0; $i < scalar(@ests); $i++){
+			#		my $file = $ests[$i]; 
+			#		$file = abs_path($file); 
+		
+			#		#print "$file\n"; 
+			#		my @fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1];
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		#print "File: $task, $file, $newfile\n";  
 			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
-			#		if ($#fields > 1) {
-			#			print STDERR "Rewriting $file to $newfile\n"; 
-			#			$ests[$j] = $newfile;  
-			#		}
+			#		print STDERR "Rewriting $file to $newfile\n"; 
+			#		$ests[$i] = $newfile;  
 			#	}
 			#	$tier->CTL_OPT->{e_db} = \@ests;
 			#}
-		
-			#submit_pdb_input_files($task,$tier);	
+
 			#if (defined $tier->CTL_OPT->{p_db}){ 
 			#	my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
-			#	for(my $j = 0; $j < scalar(@proteins); $j++){
-			#		my $file = $proteins[$j];
-			#		my @fields = split(/\//, $file);
-
-			#		if ($#fields > 1){
-			#			$file = abs_path($file); 
-			#		}
-			#
-			#		@fields = split(/\//, $file); 
+			#	for(my $i = 0; $i < scalar(@proteins); $i++){
+			#		my $file = $proteins[$i]; 
+			#		$file = abs_path($file); 
+		
+			#		my @fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1]; 
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			#		if ($#fields > 1){
-			#			$proteins[$j] = $newfile; 
-			#		}
+			#		$proteins[$i] = $newfile; 
 			#	}
 			#	$tier->CTL_OPT->{p_db} = \@proteins; 
 			#}
-		
-			#submit_ddb_input_files($task,$tier);	
+
 			#if (defined $tier->CTL_OPT->{d_db}){
 			#	my @d = @{$tier->CTL_OPT->{d_db}}; 	
-			#	for(my $j = 0; $j < scalar(@d); $j++){
-			#		my $file = $d[$j]; 
-			#		my @fields = split(/\//, $file);
-
-			#		if ($#fields > 1){
-			#			$file = abs_path($file); 
-			#		}
-		
-			#		@fields = split(/\//, $file); 
+			#	for(my $i = 0; $i < scalar(@d); $i++){
+			#		my $file = $d[$i]; 
+			#		$file = abs_path($file); 
+			#
+			#		my @fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1]; 
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			#		if ($#fields > 1){
-			#			$d[$j] = $newfile; 
-			#		}
+			#		$d[$i] = $newfile; 
 			#	}
 			#	$tier->CTL_OPT->{d_db} = \@d; 
 			#}
-		
-			#submit_rdb_input_files($task,$tier);	
+
 			#if (defined $tier->CTL_OPT->{r_db}){
 			#	my @r = @{$tier->CTL_OPT->{r_db}}; 	
-			#	for(my $j = 0; $j < scalar(@r); $j++){
-			#		my $file = $r[$j]; 
-			#		my @fields = split(/\//, $file);
-
-			#		if ($#fields > 1){
-			#			$file = abs_path($file); 
-			#		}
-			#
-			#		@fields = split(/\//, $file); 
-			#		my $newfile = $fields[scalar(@fields) - 1]; 
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
-			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			#		if ($#fields > 1){
-			#			$r[$j] = $newfile; 
-			#		}
-			#	}
-			#	$tier->CTL_OPT->{r_db} = \@r; 
-			#}
+			#	for(my $i = 0; $i < scalar(@r); $i++){
+			#		my $file = $r[$i]; 
+			#		$file = abs_path($file); 
 		
-			#submit_adb_input_files($task,$tier);	
+			#		my @fields = split(/\//, $file); 
+			#		my $newfile = $fields[scalar(@fields) - 1]; 
+			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
+			#		$r[$i] = $newfile; 
+			#	}
+			#}
+
 			#if (defined $tier->CTL_OPT->{a_db}){
 			#	my @a = @{$tier->CTL_OPT->{a_db}}; 	
-			#	for(my $j = 0; $j < scalar(@a); $j++){
-			#		my $file = $a[$j];
-			#		my @fields = split(/\//, $file);
-
-			#		if ($#fields > 1){
-			#			$file = abs_path($file); 
-			#		}
-			#		@fields = split(/\//, $file); 
+			#	for(my $i = 0; $i < scalar(@a); $i++){
+			#		my $file = $a[$i];
+			#		$file = abs_path($file); 
+			#		my @fields = split(/\//, $file); 
 			#		my $newfile = $fields[scalar(@fields) - 1]; 
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-			#		
-			#		if ($#fields > 1){
-			#			$a[$j] = $newfile; 
-			#		}
+			#		$a[$i] = $newfile; 
 			#	}
 			#	$tier->CTL_OPT->{a_db} = \@a; 
 			#}
-		
+
 			#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
 			#instead we'll just transfer the files and let each worker index them if they'd like
-			#submit_input_files($task, $tier);	
 			#my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
 			#foreach my $input (@inputs){
-			#	if (! defined $tier->CTL_OPT->{$input}){next;}
 			#	my $file = $tier->CTL_OPT->{$input}; 
 			#	my @fields = split(/\//, $file); 
 			#	my $newfile = $fields[scalar(@fields) - 1]; 
 			#	if(-e $file){
 			#		$file = abs_path($file); 
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
 			#	}
 			#	$tier->CTL_OPT->{$input} = $newfile; 
 			#}
 			###END - specifying input variables 
-		
+
 			###BEGIN - transfer executables to the worker
-			#submit_executable_files($task, $tier);	
 			#my @files = ('snaphmm',  'SEEN_file', 'rmlib');
 			#foreach my $x (@files){ 
 			#	my $file = $tier->CTL_OPT->{$x}; 
 			#	my @fields = split(/\//, $file); 
 			#	my $newfile = $fields[scalar(@fields) - 1]; 
-			#	if(-e $file){
+			#	if(-e $file) {
 			#		$file = abs_path($file); 
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
 			#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
 			#		$tier->CTL_OPT->{$x} = "./$newfile"; 
 			#	}
 			#}	 
+	#also need RepbaseEMBL.pm in an automated fashion, it should be in the same directory as RepeatMaker?
+	#	my $e = $tier->CTL_OPT->{'RepeatMasker'};
+	#	my @fields = split(/\//, $e); 
+	#	my $file = ""; 
+	#	for(my $i = 0; $i < scalar(@fields) - 1 ; $i++){$file .= "/".$fields[$i];}
+	#	my @pms = ("RepbaseRecord.pm", "RepbaseEMBL.pm", "ArrayList.pm", "ArrayListIterator.pm", "CrossmatchSearchEngine.pm", "DeCypherSearchEngine.pm", "FastaDB.pm", "LineHash.pm", "PubRef.pm", "RepeatAnnotationData.pm", "RepeatMaskerConfig.pm", "SearchEngineI.pm", "SearchResult.pm", "SearchResultCollection.pm", "SeqDBI.pm", "SimpleBatcher.pm", "Taxonomy.pm", "TRF.pm", "TRFResult.pm", "WUBlastSearchEngine.pm", "WUBlastXSearchEngine.pm"); 
+	#	my $prefix = $file; 
+
+	#	foreach my $newfile (@pms){             
+	#		$file = $prefix."/$newfile"; 
+	#	work_queue::work_queue_task_specify_input_file($task, $file, "./"); 
+	#	}
 			#my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+
 			#foreach my $v (@execs){
 			#	my $file = $tier->CTL_OPT->{$v}; 
 			#	if (! -e $file){
@@ -542,12 +777,9 @@ sub SubmitTask {
 			#	print STDERR "File: $file\n"; 
 			#	$file = abs_path($file); 
 			#	print STDERR "Abs_path: $file\n"; 
-		
 			#	my @fields = split(/\//, $file); 
 			#	my $prefix = ""; 
-			#	for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
-			#		$prefix .= "/".$fields[$j];
-			#	}
+			#	for (my $i = 0; $i < scalar(@fields) - 1; $i++){$prefix .= "/".$fields[$i];}
 			#	my $newfile = $fields[scalar(@fields) - 1]; 
 			#	my $folder = $fields[scalar(@fields) - 2]; 
 			#	if(-e $file){
@@ -556,18 +788,18 @@ sub SubmitTask {
 			#			my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
 			#		}
 			#		print STDERR "Specifying file: $prefix with remote name $v\n";  
-			#		#we don't care how many times this gets called since WQ only transfers a file once if it has the same filename.
+			#		#work_queue::work_queue_task_specify_file($task, $prefix, $v, 0, 1);
 			#		work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
+			#		#$tier->CTL_OPT->{$v} = "$v/$newfile"; 
 			#		print STDERR "Rewriting $file to $folder/$newfile\n"; 
 			#		$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
-		
 			#	}
 			#}
 			###END - transfer executables to the worker
-		
+
 			###BEGIN - changing paths to force the workers to run things in the local directory 
 			#hopefully we can make the log file reside on the remote machine
-			#configure_remote_execution($tier);	
+			#print STDERR "HERE:\n";	
 			#$tier->CTL_OPT->{out_name} = "."; 
 			#$tier->CTL_OPT->{out_base} = "."; 
 			#$tier->CTL_OPT->{the_void} = ".";
@@ -585,10 +817,10 @@ sub SubmitTask {
 			#$tier->CTL_OPT->{_TMP} = "./";  
 			###END - changing paths
 			my $root = $tier->DS_CTL->{root}; 
-		
+
 			#store the modified variables to the tier file that will be transmitted to the workers	
 			nstore \$tier, ($inFile);
-		
+
 			###BEGIN - specifying output
 			#need to know the remote directory name, this is generated from the sequence header
 			if(!exists($tier->{VARS}->{fasta})){
@@ -598,271 +830,31 @@ sub SubmitTask {
 			my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 			my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
 			my $newfile = $root."/$seq_id";
-			print time." :: Specifying output for task# $counter\n";  
-			
 			my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
-			if ($ds_flag) {
+			print time." :: Specifying output for task# $counter\n";  
+			if ($ds_flag){
 				use Digest::MD5 qw(md5_hex);
-		
-				my $dir = ""; #Datastore::MD5::id_to_dir($seq_id);
-				my($digest) = uc md5_hex($seq_id); #the hex string, uppercased
-				for(my $j = 0; $j < 2; $j++) {
+
+				my $dir = "";#Datastore::MD5::id_to_dir($seq_id);
+				my($digest) = uc md5_hex($seq_id); # the hex string, uppercased
+				for(my $i = 0; $i < 2; $i++){
 					$dir .= substr($digest, $i*2, 2) ."/";
 				}
 				$dir .= $seq_id . "/";
 				print "Directory from MD5 = $dir, from $seq_id\n";  
 				work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
-			} else {
+			} else{
 				work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 			}
 			$seq_ids{$seq_id} = 1; 
 			###END - specifying output
-			
-			$counter++; 
+
+			$wq_time += (time - $t0); 
+			work_queue::work_queue_submit($queue, $task);
+			print time." :: submitted task with command: $command, count# $counter\n";
+			return 1;
 		}
-		$wq_time += (time - $t0); 
-		work_queue::work_queue_submit($queue, $task);
-		print "Submitted task with command: $command, query seq #:$query_seq\n";
-		return 1;
-	} else {
-		$t0 = time; 	
-		my $inFile = $counter."_todo.tier";
-		
-		### ztm :: new task, set its I/O parms
-		print "Creating task $counter\n"; 
-		my $task = work_queue::work_queue_task_create("$command $counter"); 
-		print "Specifying tag $counter \n"; 
-		work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-		print "Specifying input $wkDirPrefix$inFile\n";
-		work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
-
-		print "Specifying the worker executable maker_wq_worker \n";
-
-		work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
-
-		###BEGIN - specifying the MAKER library files 
-		print "Specifying library files\n"; 
-		my $lib = "$FindBin::Bin";
-		$lib =~ s/bin/lib/; 
-		if(! -e "$wkDirPrefix/lib.tar"){
-			print "Tarring lib/ \n"; 
-			`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
-		}
-		work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
-		###END - specifying the MAKER library files 
-
-		###BEGIN - specifying the input files 
-		#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
-		print "Specifying all of the necessary files to run the workers locally\n"; 
-		#$tier holds all of the information for the task; 
-		my $tier = ${retrieve($inFile)};
-		submit_edb_input_files($task,$tier);	
-		submit_pdb_input_files($task,$tier);	
-		submit_ddb_input_files($task,$tier);	
-		submit_rdb_input_files($task,$tier);	
-		submit_adb_input_files($task,$tier);	
-		submit_input_files($task,$tier);	
-		submit_executable_files($task,$tier);	
-		configure_remote_execution($tier);	
-		#if (defined $tier->CTL_OPT->{e_db}){
-		#	my @ests = @{$tier->CTL_OPT->{e_db}};
-		#	for(my $i = 0; $i < scalar(@ests); $i++){
-		#		my $file = $ests[$i]; 
-		#		$file = abs_path($file); 
-	
-		#		#print "$file\n"; 
-		#		my @fields = split(/\//, $file); 
-		#		my $newfile = $fields[scalar(@fields) - 1];
-		#		#print "File: $task, $file, $newfile\n";  
-		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
-		#		print STDERR "Rewriting $file to $newfile\n"; 
-		#		$ests[$i] = $newfile;  
-		#	}
-		#	$tier->CTL_OPT->{e_db} = \@ests;
-		#}
-
-		#if (defined $tier->CTL_OPT->{p_db}){ 
-		#	my @proteins = @{$tier->CTL_OPT->{p_db}}; 	
-		#	for(my $i = 0; $i < scalar(@proteins); $i++){
-		#		my $file = $proteins[$i]; 
-		#		$file = abs_path($file); 
-	
-		#		my @fields = split(/\//, $file); 
-		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-		#		$proteins[$i] = $newfile; 
-		#	}
-		#	$tier->CTL_OPT->{p_db} = \@proteins; 
-		#}
-
-		#if (defined $tier->CTL_OPT->{d_db}){
-		#	my @d = @{$tier->CTL_OPT->{d_db}}; 	
-		#	for(my $i = 0; $i < scalar(@d); $i++){
-		#		my $file = $d[$i]; 
-		#		$file = abs_path($file); 
-		#
-		#		my @fields = split(/\//, $file); 
-		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-		#		$d[$i] = $newfile; 
-		#	}
-		#	$tier->CTL_OPT->{d_db} = \@d; 
-		#}
-
-		#if (defined $tier->CTL_OPT->{r_db}){
-		#	my @r = @{$tier->CTL_OPT->{r_db}}; 	
-		#	for(my $i = 0; $i < scalar(@r); $i++){
-		#		my $file = $r[$i]; 
-		#		$file = abs_path($file); 
-	
-		#		my @fields = split(/\//, $file); 
-		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-		#		$r[$i] = $newfile; 
-		#	}
-		#}
-
-		#if (defined $tier->CTL_OPT->{a_db}){
-		#	my @a = @{$tier->CTL_OPT->{a_db}}; 	
-		#	for(my $i = 0; $i < scalar(@a); $i++){
-		#		my $file = $a[$i];
-		#		$file = abs_path($file); 
-		#		my @fields = split(/\//, $file); 
-		#		my $newfile = $fields[scalar(@fields) - 1]; 
-		#		work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
-		#		$a[$i] = $newfile; 
-		#	}
-		#	$tier->CTL_OPT->{a_db} = \@a; 
-		#}
-
-		#for some stupid reason they decided they should let the workers fight over which one would be the first to get to these files and index them. 
-		#instead we'll just transfer the files and let each worker index them if they'd like
-		#my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
-		#foreach my $input (@inputs){
-		#	my $file = $tier->CTL_OPT->{$input}; 
-		#	my @fields = split(/\//, $file); 
-		#	my $newfile = $fields[scalar(@fields) - 1]; 
-		#	if(-e $file){
-		#		$file = abs_path($file); 
-		#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
-		#	}
-		#	$tier->CTL_OPT->{$input} = $newfile; 
-		#}
-		###END - specifying input variables 
-
-		###BEGIN - transfer executables to the worker
-		#my @files = ('snaphmm',  'SEEN_file', 'rmlib');
-		#foreach my $x (@files){ 
-		#	my $file = $tier->CTL_OPT->{$x}; 
-		#	my @fields = split(/\//, $file); 
-		#	my $newfile = $fields[scalar(@fields) - 1]; 
-		#	if(-e $file) {
-		#		$file = abs_path($file); 
-		#		work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
-		#		$tier->CTL_OPT->{$x} = "./$newfile"; 
-		#	}
-		#}	 
-#also need RepbaseEMBL.pm in an automated fashion, it should be in the same directory as RepeatMaker?
-#	my $e = $tier->CTL_OPT->{'RepeatMasker'};
-#	my @fields = split(/\//, $e); 
-#	my $file = ""; 
-#	for(my $i = 0; $i < scalar(@fields) - 1 ; $i++){$file .= "/".$fields[$i];}
-#	my @pms = ("RepbaseRecord.pm", "RepbaseEMBL.pm", "ArrayList.pm", "ArrayListIterator.pm", "CrossmatchSearchEngine.pm", "DeCypherSearchEngine.pm", "FastaDB.pm", "LineHash.pm", "PubRef.pm", "RepeatAnnotationData.pm", "RepeatMaskerConfig.pm", "SearchEngineI.pm", "SearchResult.pm", "SearchResultCollection.pm", "SeqDBI.pm", "SimpleBatcher.pm", "Taxonomy.pm", "TRF.pm", "TRFResult.pm", "WUBlastSearchEngine.pm", "WUBlastXSearchEngine.pm"); 
-#	my $prefix = $file; 
-
-#	foreach my $newfile (@pms){             
-#		$file = $prefix."/$newfile"; 
-#	work_queue::work_queue_task_specify_input_file($task, $file, "./"); 
-#	}
-		#my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
-
-		#foreach my $v (@execs){
-		#	my $file = $tier->CTL_OPT->{$v}; 
-		#	if (! -e $file){
-		#		next;
-		#	}
-		#	print STDERR "File: $file\n"; 
-		#	$file = abs_path($file); 
-		#	print STDERR "Abs_path: $file\n"; 
-		#	my @fields = split(/\//, $file); 
-		#	my $prefix = ""; 
-		#	for (my $i = 0; $i < scalar(@fields) - 1; $i++){$prefix .= "/".$fields[$i];}
-		#	my $newfile = $fields[scalar(@fields) - 1]; 
-		#	my $folder = $fields[scalar(@fields) - 2]; 
-		#	if(-e $file){
-		#		if (! -e "$v.tar"){
-		#			print STDERR "Running tar -cf $v.tar $prefix\n"; 
-		#			my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
-		#		}
-		#		print STDERR "Specifying file: $prefix with remote name $v\n";  
-		#		#work_queue::work_queue_task_specify_file($task, $prefix, $v, 0, 1);
-		#		work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
-		#		#$tier->CTL_OPT->{$v} = "$v/$newfile"; 
-		#		print STDERR "Rewriting $file to $folder/$newfile\n"; 
-		#		$tier->CTL_OPT->{$v} = "$folder/$newfile"; 
-		#	}
-		#}
-		###END - transfer executables to the worker
-
-		###BEGIN - changing paths to force the workers to run things in the local directory 
-		#hopefully we can make the log file reside on the remote machine
-		#print STDERR "HERE:\n";	
-		#$tier->CTL_OPT->{out_name} = "."; 
-		#$tier->CTL_OPT->{out_base} = "."; 
-		#$tier->CTL_OPT->{the_void} = ".";
-		#my $file = $tier->DS_CTL->{log}; 
-		#my @fields = split(/\//, $file);
-		#$file = $fields[scalar(@fields) - 1]; 
-		#$tier->DS_CTL->{log} = "./$file"; 
-		#my $root = $tier->DS_CTL->{root}; 
-		##print "Root: $root\n"; 
-		#$tier->DS_CTL->{root} = "./"; 
-		#$tier->DS_CTL->{ds_object}->{_root} = "./"; 
-		#$tier->{the_void} = "."; 
-		#$tier->CTL_OPT->{CWD} = ".";  
-		#$tier->GFF_DB->{dbfile} = "./";
-		#$tier->CTL_OPT->{_TMP} = "./";  
-		###END - changing paths
-		my $root = $tier->DS_CTL->{root}; 
-
-		#store the modified variables to the tier file that will be transmitted to the workers	
-		nstore \$tier, ($inFile);
-
-		###BEGIN - specifying output
-		#need to know the remote directory name, this is generated from the sequence header
-		if(!exists($tier->{VARS}->{fasta})){
-			print "Fasta doesn't exist\n"; 
-		}
-		my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
-        my $q_def = Fasta::getDef(\$fasta); #Get fasta header
-        my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
-		my $newfile = $root."/$seq_id";
-		print "Specifying output: $seq_id, $newfile\n";  
-		my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
-		if ($ds_flag){
-			use Digest::MD5 qw(md5_hex);
-
-			my $dir = "";#Datastore::MD5::id_to_dir($seq_id);
-			my($digest) = uc md5_hex($seq_id); # the hex string, uppercased
-			for(my $i = 0; $i < 2; $i++){
-				$dir .= substr($digest, $i*2, 2) ."/";
-			}
-			$dir .= $seq_id . "/";
-			print "Directory from MD5 = $dir, from $seq_id\n";  
-			work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
-		}
-		else{
-			work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
-		}
-		$seq_ids{$seq_id} = 1; 
-		###END - specifying output
-
-		$wq_time += (time - $t0); 
-		work_queue::work_queue_submit($queue, $task);
-		print "Submitted task with command: $command and counter $counter\n";
-		return 1;
 	}
-}
 
 sub BuildSubmit {
 	$t0 = time; 
