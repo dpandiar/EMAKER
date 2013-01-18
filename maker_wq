@@ -11,7 +11,7 @@ use vars qw($RANK $LOG $CMD_ARGS);
 
 my $local_execn_time = 0; 
 my $wq_execn_time = 0; 
-my $t0 = time; 
+my $time_start = time; 
 #eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
 #    if 0; # not running under some shell
 
@@ -272,10 +272,10 @@ try{
     $code = $E->{-value} if (defined($E->{-value}));
     exit($code);
 };
-$local_execn_time += (time - $t0); 
+$local_execn_time += (time - $time_start); 
 
 sub run_maker_mpi {
-	$t0 = time; 
+	$time_start = time; 
 	my $f_count = @failed;
 	while (my $fasta = $iterator->nextFasta() || shift @failed){
 	    my $tier = Process::MpiTiers->new({fasta =>$fasta,
@@ -298,11 +298,11 @@ sub run_maker_mpi {
 	    $tier->run_all;
 	    push(@failed, $tier->fasta) if ($tier->failed);
 	}
-	$local_execn_time += (time - $t0); 
+	$local_execn_time += (time - $time_start); 
 }
 
 if($OPT{wq}) {
-	$t0 = time; 
+	$time_start = time; 
 
 	use Storable qw(nstore retrieve);
 	use work_queue;
@@ -360,7 +360,7 @@ if($OPT{wq}) {
 		my($counter) = @_;
 
 		if($OPT{size} > 1){
-			$t0 = time; 
+			$time_start = time; 
 			my $query_seq = ""; 
 			for(my $i = 0; $i < $OPT{size}; $i++) {
 				my $val = $counter + $i; 
@@ -644,12 +644,12 @@ if($OPT{wq}) {
 				
 				$counter++; 
 			}
-			$wq_execn_time += (time - $t0); 
+			$wq_execn_time += (time - $time_start); 
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted task with command: $command for query seq: $query_seq\n";
 			return 1;
 		} else {
-			$t0 = time; 	
+			$time_start = time; 	
 			my $inFile = $counter."_todo.tier";
 			
 			### ztm :: new task, set its I/O parms
@@ -873,7 +873,7 @@ if($OPT{wq}) {
 			$seq_ids{$seq_id} = 1; 
 			###END - specifying output
 
-			$wq_execn_time += (time - $t0); 
+			$wq_execn_time += (time - $time_start); 
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted WQ task with command: $command, count# $counter\n";
 			return 1;
@@ -881,17 +881,17 @@ if($OPT{wq}) {
 	}
 
 	sub BuildSubmit {
-		$t0 = time; 
+		$time_start = time; 
 		## pull $tierCtr implicitly from the global scope
 		my($howManyMore) = @_;
 		
 		my $highLimit = $tierCtr + $howManyMore;
-		$wq_execn_time += (time - $t0); 
+		$wq_execn_time += (time - $time_start); 
 		while( $tierCtr < $highLimit ) {
 			SubmitTask($tierCtr);
-			$t0 = time; 
+			$time_start = time; 
 			$tierCtr += $OPT{size};
-			$wq_execn_time += (time - $t0); 
+			$wq_execn_time += (time - $time_start); 
 		}
 	}
 
@@ -1103,9 +1103,9 @@ if($OPT{wq}) {
 		$tier->CTL_OPT->{_TMP} = "./";  
 	}
 
-	$wq_execn_time += (time - $t0); 
+	$wq_execn_time += (time - $time_start); 
 
-	$t0 = time; 
+	$time_start = time; 
 	$highestTier = GenTiers();
 	print time." :: Highest input generated was $highestTier \n";
 
@@ -1113,9 +1113,9 @@ if($OPT{wq}) {
 	$initialSubmit = $highestTier / 100;
 	open(LOG, ">>", "logfile"); 
 	print LOG "#start\n";
-	$local_execn_time += (time - $t0); 
+	$local_execn_time += (time - $time_start); 
 
-	$t0 = time; 
+	$time_start = time; 
 	BuildSubmit($initialSubmit);
 	print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 	my $old_seconds = 0;
@@ -1155,7 +1155,7 @@ if($OPT{wq}) {
 		}
 
 		if(defined($t)) {
-			$t0 = time; 
+			$time_start = time; 
 			my $counter = $t->{tag}; #work_queue::work_queue_task::swig_tag_get($t);
 			my $output = $t->{output}; #work_queue::work_queue_task::swig_output_get($t);
 			my $retStatus = index($output, "EXIT:");
@@ -1192,7 +1192,7 @@ if($OPT{wq}) {
 					print time." :: WQ task# $counter has failed too many times\n"; 
 				}
 			}
-			$wq_execn_time += (time - $t0); 
+			$wq_execn_time += (time - $time_start); 
 		} else { #
 		}
 		
@@ -1217,7 +1217,7 @@ if($OPT{wq}) {
 	#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
 	close(LOG);
 	work_queue::work_queue_delete($queue);
-	$wq_execn_time += (time - $t0); 
+	$wq_execn_time += (time - $time_start); 
 	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
 } else { #code for handling non WQ based execution through MPI.
 	run_maker_mpi();	
