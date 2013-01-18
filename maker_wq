@@ -1175,7 +1175,7 @@ if($OPT{wq}) {
 		}
 		
 		while (work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { 
-			print time.":: WQ is hungry. Submitting $tierCtr tasks\n";
+			print time.":: WQ is hungry. So going to submit task# $tierCtr \n";
 			BuildSubmit(1);
 		}
 	}
