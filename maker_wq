@@ -29,7 +29,7 @@ BEGIN{
    
    #what to do on ^C
    $SIG{'INT'} = sub {
-      print STDERR "\n\nMaker aborted by user!!\n\n" unless($main::qq);
+      print STDERR "\n\nMaker aborted by user!\n\n" unless($main::qq);
       exit (1);
    };    
    
@@ -247,8 +247,8 @@ try{
 		if (-e "maker_opts.ctl" && -e "maker_bopts.ctl" && -e "maker_exe.ctl") {
 			@ctlfiles = ("maker_opts.ctl", "maker_bopts.ctl", "maker_exe.ctl");
 		} else {
-			print STDERR  "ERROR: Control files not found\n";
-			print $usage;
+			print STDERR "Maker control files not found\n";
+			print STDERR $usage;
 			exit(0);
 		}
     }
@@ -272,7 +272,6 @@ try{
     print STDERR $E->{-text};
     my $code = 2;
     $code = $E->{-value} if (defined($E->{-value}));
-    
     exit($code);
 };
 $maker_time += (time - $t0); 
@@ -349,17 +348,16 @@ if($OPT{wq}) {
 			if($query_seq eq ""){
 				return 0; 
 			}
-			print time." :: Creating task# $counter\n";  
+			print time." :: Creating WQ task# $counter\n";  
 			my $task = work_queue::work_queue_task_create("$command $query_seq"); 
 			work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-			print time." :: Specifying input for task# $counter\n";  
+			print time." :: Specifying input and output files for WQ task# $counter\n";  
 			work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 			
 			###specifying the MAKER library files 
 			my $lib = "$FindBin::Bin";
 			$lib =~ s/bin/lib/; 
 			if(! -e "$wkDirPrefix/lib.tar"){
-				print "Tarring lib files\n";
 				`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
 			}
 			work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
@@ -593,13 +591,13 @@ if($OPT{wq}) {
 				###BEGIN - specifying output
 				#need to know the remote directory name, this is generated from the sequence header
 				if(!exists($tier->{VARS}->{fasta})){
-					print "Fasta doesn't exist\n"; 
+					print STDERR "Fasta doesn't exist\n"; 
+					exit(0);
 				}
 				my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
 				my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 				my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
 				my $newfile = $root."/$seq_id";
-				print time." :: Specifying output for task# ", $task->{tag}, "\n";  
 				
 				my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
 				if ($ds_flag) {
@@ -611,9 +609,10 @@ if($OPT{wq}) {
 						$dir .= substr($digest, $i*2, 2) ."/";
 					}
 					$dir .= $seq_id . "/";
-					print "Directory from MD5 = $dir, from $seq_id\n";  
+					print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
 					work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
 				} else {
+					print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
 					work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 				}
 				$seq_ids{$seq_id} = 1; 
@@ -623,7 +622,7 @@ if($OPT{wq}) {
 			}
 			$wq_time += (time - $t0); 
 			work_queue::work_queue_submit($queue, $task);
-			time.print time." :: submitted task with command: $command, query seq #:$query_seq\n";
+			print time." :: submitted task with command: $command for query seq: $query_seq\n";
 			return 1;
 		} else {
 			$t0 = time; 	
@@ -632,7 +631,7 @@ if($OPT{wq}) {
 			### ztm :: new task, set its I/O parms
 			my $task = work_queue::work_queue_task_create("$command $counter"); 
 			work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-			print time." :: Specifying input for task# $counter\n";  
+			print time." :: Specifying input and output files for task# $counter\n";  
 			work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 			work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
@@ -640,7 +639,6 @@ if($OPT{wq}) {
 			my $lib = "$FindBin::Bin";
 			$lib =~ s/bin/lib/; 
 			if(! -e "$wkDirPrefix/lib.tar"){
-				print "Tarring lib/ \n"; 
 				`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
 			}
 			work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
@@ -825,14 +823,14 @@ if($OPT{wq}) {
 			###BEGIN - specifying output
 			#need to know the remote directory name, this is generated from the sequence header
 			if(!exists($tier->{VARS}->{fasta})){
-				print "Fasta doesn't exist\n"; 
+				print STDERR "Fasta doesn't exist\n"; 
+				exit(0);
 			}
 			my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
 			my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 			my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
 			my $newfile = $root."/$seq_id";
 			my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
-			print time." :: Specifying output for task# ", $task->{tag}, "\n";  
 			if ($ds_flag){
 				use Digest::MD5 qw(md5_hex);
 
@@ -842,9 +840,10 @@ if($OPT{wq}) {
 					$dir .= substr($digest, $i*2, 2) ."/";
 				}
 				$dir .= $seq_id . "/";
-				print "Directory from MD5 = $dir, from $seq_id\n";  
+				print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
 				work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
 			} else{
+				print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
 				work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 			}
 			$seq_ids{$seq_id} = 1; 
@@ -852,7 +851,7 @@ if($OPT{wq}) {
 
 			$wq_time += (time - $t0); 
 			work_queue::work_queue_submit($queue, $task);
-			print time." :: submitted task with command: $command, count# $counter\n";
+			print time." :: submitted WQ task with command: $command, count# $counter\n";
 			return 1;
 		}
 	}
@@ -1105,7 +1104,6 @@ if($OPT{wq}) {
 		#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 		Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 		#my $pid = `ps x | grep [m]aintain | cut -f1`;
-		#print "Perl Maintain.pl pid is: $pid\n";	
 		#kill(9,$pid);
 		#my $pid = wait(); 
 		#if($pid != -1){
@@ -1148,7 +1146,7 @@ if($OPT{wq}) {
 			### the hopeful, successful ending
 			if($retStatus == 1 || $retStatus == 0) {
 				$tiersTerm++;
-				print time." :: Finished task $counter and $tiersTerm done so far \n";
+				print time." :: Finished WQ task# $counter and $tiersTerm done so far \n";
 				unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 				work_queue::work_queue_task_delete($t);
 			} else { ### tier resubmission on failure 
@@ -1156,7 +1154,7 @@ if($OPT{wq}) {
 				$/ = "";
 
 				if($retStatus == -1) {
-					print time." :: Failed, resubmitting task $counter\n";
+					print time." :: Failed, resubmitting WQ task# $counter\n";
 					$failures{$counter} += 1; 
 					my $tier = ${retrieve($counter."_todo.tier")};
 					
@@ -1165,12 +1163,12 @@ if($OPT{wq}) {
 					nstore \$tier, ($counter."_todo.tier");
 				} else { 
 					### general completion
-					print time." :: completed, not terminated $counter, returned $retStatus\n";
+					print time." :: WQ task# $counter completed, not terminated since it returned $retStatus\n";
 				}
 				if($failures{$counter} < 5){
 					work_queue::work_queue_submit($queue, $t);
 				} else{
-					print time." :: Task $counter has failed too many times\n"; 
+					print time." :: WQ task# $counter has failed too many times\n"; 
 				}
 			}
 			$process_output_time += (time - $t0); 
@@ -1196,10 +1194,9 @@ if($OPT{wq}) {
 	#}
 
 	#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
-	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
-	 
 	work_queue::work_queue_delete($queue);
 	close(LOG);
+	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
 	print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
 } else{ #code for handling non WQ based execution through MPI.
 	my $f_count = @failed;
@@ -1225,7 +1222,7 @@ if($OPT{wq}) {
 	    push(@failed, $tier->fasta) if ($tier->failed);
 	}
 }
-print time."\n\nMaker is now finished!!!\n\n" unless($main::qq);
+print time."\n\nMaker is finished!!!\n\n" unless($main::qq);
 
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
