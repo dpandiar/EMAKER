@@ -274,6 +274,33 @@ try{
 };
 $local_execn_time += (time - $t0); 
 
+sub run_maker_mpi {
+	$t0 = time; 
+	my $f_count = @failed;
+	while (my $fasta = $iterator->nextFasta() || shift @failed){
+	    my $tier = Process::MpiTiers->new({fasta =>$fasta,
+					    CTL_OPT => \%CTL_OPT,
+					    DS_CTL  => $DS_CTL,
+					    GFF_DB  => $GFF_DB,
+					    build   => $build},
+					   '0',
+					   'Process::MpiChunk'
+					   );
+	
+		#take a short break before processing previously failed contigs this handles 
+		#heavy processor usage when failure is related to maker process overlap
+		if($f_count != @failed){
+			sleep 1;
+	    }
+	    $f_count = @failed; #reset failure count
+	
+	    next if($tier->terminated);
+	    $tier->run_all;
+	    push(@failed, $tier->fasta) if ($tier->failed);
+	}
+	$local_execn_time += (time - $t0); 
+}
+
 if($OPT{wq}) {
 	$t0 = time; 
 
@@ -1193,30 +1220,7 @@ if($OPT{wq}) {
 	$wq_execn_time += (time - $t0); 
 	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
 } else { #code for handling non WQ based execution through MPI.
-	$t0 = time; 
-	my $f_count = @failed;
-	while (my $fasta = $iterator->nextFasta() || shift @failed){
-	    my $tier = Process::MpiTiers->new({fasta =>$fasta,
-					    CTL_OPT => \%CTL_OPT,
-					    DS_CTL  => $DS_CTL,
-					    GFF_DB  => $GFF_DB,
-					    build   => $build},
-					   '0',
-					   'Process::MpiChunk'
-					   );
-	
-		#take a short break before processing previously failed contigs this handles 
-		#heavy processor usage when failure is related to maker process overlap
-		if($f_count != @failed){
-			sleep 1;
-	    }
-	    $f_count = @failed; #reset failure count
-	
-	    next if($tier->terminated);
-	    $tier->run_all;
-	    push(@failed, $tier->fasta) if ($tier->failed);
-	}
-	$local_execn_time += (time - $t0); 
+	run_maker_mpi();	
 }
 print time " :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 print "\n\nMaker is finished!!!\n\n" unless($main::qq);
