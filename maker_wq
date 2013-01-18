@@ -316,8 +316,7 @@ if($OPT{wq}) {
 	my $tiersTerm = 0;
 	my %seq_ids = {}; 
 	my $datastore = $DS_CTL->{root}; 
-	my $wkDirPrefix;
-	$wkDirPrefix = cwd();
+	my $wkDirPrefix = cwd();
 	chomp($wkDirPrefix); 
 	$wkDirPrefix =~ s/\n//g;
 	$wkDirPrefix .= "/";
