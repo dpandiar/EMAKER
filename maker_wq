@@ -1081,24 +1081,21 @@ if($OPT{wq}) {
 
 	$t0 = time; 
 	$highestTier = GenTiers();
-	$local_execn_time += (time - $t0); 
-
-	$t0 = time; 
 	print time." :: Highest input generated was $highestTier \n";
 
 	# generate and submit however many tiers (should ideally match number of workers) to start with
 	$initialSubmit = $highestTier / 100;
-	$wq_execn_time += (time - $t0); 
-
-	BuildSubmit($initialSubmit);
-	print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
-
 	open(LOG, ">>", "logfile"); 
 	print LOG "#start\n";
+	$local_execn_time += (time - $t0); 
+
+	$t0 = time; 
+	BuildSubmit($initialSubmit);
+	print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 	my $old_seconds = 0;
 	my %failures; 
+
 	while(!work_queue::work_queue_empty($queue)) {
-		my($t1, $t3) = gettimeofday;	
 		#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 		Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 		#my $pid = `ps x | grep [m]aintain | cut -f1`;
@@ -1193,10 +1190,11 @@ if($OPT{wq}) {
 
 	#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
 	work_queue::work_queue_delete($queue);
+	$wq_execn_time += (time - $t0); 
 	close(LOG);
 	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
-	print "Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
-} else{ #code for handling non WQ based execution through MPI.
+} else { #code for handling non WQ based execution through MPI.
+	$t0 = time; 
 	my $f_count = @failed;
 	while (my $fasta = $iterator->nextFasta() || shift @failed){
 	    my $tier = Process::MpiTiers->new({fasta =>$fasta,
@@ -1219,7 +1217,9 @@ if($OPT{wq}) {
 	    $tier->run_all;
 	    push(@failed, $tier->fasta) if ($tier->failed);
 	}
+	$local_execn_time += (time - $t0); 
 }
+print "Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 print time."\n\nMaker is finished!!!\n\n" unless($main::qq);
 
 #clean up all children processes
