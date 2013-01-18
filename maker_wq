@@ -1,13 +1,5 @@
 #!/usr/bin/env perl
 
-my $maker_time = 0; 
-my $wq_time = 0; 
-my $process_output_time = 0; 
-my $t0 = time; 
-
-#eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
-#    if 0; # not running under some shell
-
 use strict "vars";
 use strict "refs";
 use warnings;
@@ -16,6 +8,13 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
 use vars qw($RANK $LOG $CMD_ARGS);
+
+my $maker_time = 0; 
+my $wq_time = 0; 
+my $process_output_time = 0; 
+my $t0 = time; 
+#eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
+#    if 0; # not running under some shell
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
