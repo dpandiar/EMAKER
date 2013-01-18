@@ -1222,7 +1222,7 @@ if($OPT{wq}) {
 } else { #code for handling non WQ based execution through MPI.
 	run_maker_mpi();	
 }
-print time " :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
+print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 print "\n\nMaker is finished!!!\n\n" unless($main::qq);
 
 #clean up all children processes
