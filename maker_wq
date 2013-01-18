@@ -295,7 +295,7 @@ if($OPT{wq}) {
 	if(defined($queue)) {
 		print time." :: Work Queue listening on port $port.\n";
 	} else {
-		print time." :: Failed to create Work Queue on port $port.\n"; 
+		print STDERR "Failed to create Work Queue on port $port.\n"; 
 		exit(0);
 	}
 	if(defined($OPT{"fast_abort"})) {
@@ -1219,8 +1219,8 @@ if($OPT{wq}) {
 	}
 	$local_execn_time += (time - $t0); 
 }
-print "Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
-print time."\n\nMaker is finished!!!\n\n" unless($main::qq);
+print time " :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
+print "\n\nMaker is finished!!!\n\n" unless($main::qq);
 
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
