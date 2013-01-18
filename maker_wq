@@ -9,9 +9,8 @@ use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
 use vars qw($RANK $LOG $CMD_ARGS);
 
-my $maker_time = 0; 
-my $wq_time = 0; 
-my $process_output_time = 0; 
+my $local_execn_time = 0; 
+my $wq_execn_time = 0; 
 my $t0 = time; 
 #eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
 #    if 0; # not running under some shell
@@ -273,7 +272,7 @@ try{
     $code = $E->{-value} if (defined($E->{-value}));
     exit($code);
 };
-$maker_time += (time - $t0); 
+$local_execn_time += (time - $t0); 
 
 if($OPT{wq}) {
 	$t0 = time; 
@@ -619,7 +618,7 @@ if($OPT{wq}) {
 				
 				$counter++; 
 			}
-			$wq_time += (time - $t0); 
+			$wq_execn_time += (time - $t0); 
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted task with command: $command for query seq: $query_seq\n";
 			return 1;
@@ -848,7 +847,7 @@ if($OPT{wq}) {
 			$seq_ids{$seq_id} = 1; 
 			###END - specifying output
 
-			$wq_time += (time - $t0); 
+			$wq_execn_time += (time - $t0); 
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted WQ task with command: $command, count# $counter\n";
 			return 1;
@@ -861,12 +860,12 @@ if($OPT{wq}) {
 		my($howManyMore) = @_;
 		
 		my $highLimit = $tierCtr + $howManyMore;
-		$wq_time += (time - $t0); 
+		$wq_execn_time += (time - $t0); 
 		while( $tierCtr < $highLimit ) {
 			SubmitTask($tierCtr);
 			$t0 = time; 
 			$tierCtr += $OPT{size};
-			$wq_time += (time - $t0); 
+			$wq_execn_time += (time - $t0); 
 		}
 	}
 
@@ -1078,18 +1077,18 @@ if($OPT{wq}) {
 		$tier->CTL_OPT->{_TMP} = "./";  
 	}
 
-	$wq_time += (time - $t0); 
+	$wq_execn_time += (time - $t0); 
 
 	$t0 = time; 
 	$highestTier = GenTiers();
-	$maker_time += (time - $t0); 
+	$local_execn_time += (time - $t0); 
 
 	$t0 = time; 
 	print time." :: Highest input generated was $highestTier \n";
 
 	# generate and submit however many tiers (should ideally match number of workers) to start with
 	$initialSubmit = $highestTier / 100;
-	$wq_time += (time - $t0); 
+	$wq_execn_time += (time - $t0); 
 
 	BuildSubmit($initialSubmit);
 	print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
@@ -1170,7 +1169,7 @@ if($OPT{wq}) {
 					print time." :: WQ task# $counter has failed too many times\n"; 
 				}
 			}
-			$process_output_time += (time - $t0); 
+			$wq_execn_time += (time - $t0); 
 		} else { #
 		}
 		
@@ -1196,7 +1195,7 @@ if($OPT{wq}) {
 	work_queue::work_queue_delete($queue);
 	close(LOG);
 	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
-	print "Timing totals: maker_time: $maker_time, WQ time: $wq_time, process_output_time: $process_output_time\n";
+	print "Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 } else{ #code for handling non WQ based execution through MPI.
 	my $f_count = @failed;
 	while (my $fasta = $iterator->nextFasta() || shift @failed){
