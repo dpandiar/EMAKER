@@ -351,12 +351,14 @@ if($OPT{wq}) {
 	if(!-e $datastore) {
 		`mkdir $datastore`;
 	}
+	
+	$wq_execn_time += (time - $time_start); 
 
 	sub SubmitTask {
 		my($counter) = @_;
+		$time_start = time; 
 
 		if($OPT{size} > 1){
-			$time_start = time; 
 			my $query_seq = ""; 
 			for(my $i = 0; $i < $OPT{size}; $i++) {
 				my $val = $counter + $i; 
@@ -640,12 +642,9 @@ if($OPT{wq}) {
 				
 				$counter++; 
 			}
-			$wq_execn_time += (time - $time_start); 
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted task with command: $command for query seq: $query_seq\n";
-			return 1;
 		} else {
-			$time_start = time; 	
 			my $inFile = $counter."_todo.tier";
 			
 			### ztm :: new task, set its I/O parms
@@ -869,25 +868,20 @@ if($OPT{wq}) {
 			$seq_ids{$seq_id} = 1; 
 			###END - specifying output
 
-			$wq_execn_time += (time - $time_start); 
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted WQ task with command: $command, count# $counter\n";
-			return 1;
 		}
+		$wq_execn_time += (time - $time_start); 
+		return 1;
 	}
 
 	sub BuildSubmit {
-		$time_start = time; 
 		## pull $tierCtr implicitly from the global scope
 		my($howManyMore) = @_;
-		
 		my $highLimit = $tierCtr + $howManyMore;
-		$wq_execn_time += (time - $time_start); 
 		while( $tierCtr < $highLimit ) {
 			SubmitTask($tierCtr);
-			$time_start = time; 
 			$tierCtr += $OPT{size};
-			$wq_execn_time += (time - $time_start); 
 		}
 	}
 
@@ -1099,8 +1093,6 @@ if($OPT{wq}) {
 		$tier->CTL_OPT->{_TMP} = "./";  
 	}
 
-	$wq_execn_time += (time - $time_start); 
-
 	$time_start = time; 
 	my $highestTier = GenTiers();
 	print time." :: Highest input generated was $highestTier \n";
@@ -1110,8 +1102,8 @@ if($OPT{wq}) {
 	open(LOG, ">>", "logfile"); 
 	print LOG "#start\n";
 	$local_execn_time += (time - $time_start); 
-
 	$time_start = time; 
+	
 	BuildSubmit($initialSubmit);
 	print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 	my $old_seconds = 0;
