@@ -275,7 +275,6 @@ try{
 $local_execn_time += (time - $time_start); 
 
 sub run_maker_mpi {
-	$time_start = time; 
 	my $f_count = @failed;
 	while (my $fasta = $iterator->nextFasta() || shift @failed){
 	    my $tier = Process::MpiTiers->new({fasta =>$fasta,
@@ -298,7 +297,6 @@ sub run_maker_mpi {
 	    $tier->run_all;
 	    push(@failed, $tier->fasta) if ($tier->failed);
 	}
-	$local_execn_time += (time - $time_start); 
 }
 
 if($OPT{wq}) {
@@ -356,7 +354,6 @@ if($OPT{wq}) {
 
 	sub SubmitTask {
 		my($counter) = @_;
-		$time_start = time; 
 
 		if($OPT{size} > 1){
 			my $query_seq = ""; 
@@ -871,7 +868,6 @@ if($OPT{wq}) {
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted WQ task with command: $command, count# $counter\n";
 		}
-		$wq_execn_time += (time - $time_start); 
 		return 1;
 	}
 
@@ -1144,7 +1140,6 @@ if($OPT{wq}) {
 		}
 
 		if(defined($t)) {
-			$time_start = time; 
 			my $counter = $t->{tag}; #work_queue::work_queue_task::swig_tag_get($t);
 			my $output = $t->{output}; #work_queue::work_queue_task::swig_output_get($t);
 			my $retStatus = index($output, "EXIT:");
@@ -1181,7 +1176,6 @@ if($OPT{wq}) {
 					print time." :: WQ task# $counter has failed too many times\n"; 
 				}
 			}
-			$wq_execn_time += (time - $time_start); 
 		} else { #
 		}
 		
@@ -1209,7 +1203,9 @@ if($OPT{wq}) {
 	$wq_execn_time += (time - $time_start); 
 	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
 } else { #code for handling non WQ based execution through MPI.
+	$time_start = time; 
 	run_maker_mpi();	
+	$local_execn_time += (time - $time_start); 
 }
 print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 print "\n\nMaker is finished!!!\n\n" unless($main::qq);
