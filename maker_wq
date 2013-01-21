@@ -321,9 +321,6 @@ if($OPT{wq}) {
 			my $query_seq = ""; 
 			for(my $i = 0; $i < $OPT{size}; $i++) {
 				my $val = $counter + $i; 
-				if (! -e "$val\_todo.tier") {
-					next;
-				}
 				$query_seq .= "$val "; 
 			}
 			if($query_seq eq ""){
@@ -360,9 +357,6 @@ if($OPT{wq}) {
 			for(my $i = 1; $i <= $OPT{size}; $i++){
 			
 				$inFile = $counter."_todo.tier";
-				if (! -e $inFile){
-					next;
-				} 
 				work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 
 				####BEGIN - specifying the input files 
