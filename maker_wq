@@ -38,19 +38,6 @@ BEGIN{
 		      $_[0] !~ /Find\:\:skip_pattern|File\/Find\.pm/
 		    );
    };
-
-   #output to log file of seq that caused rank to die
-   $SIG{'__DIE__'} =
-   sub {
-		if (defined ($LOG) && defined $_[0]) {
-			my $die_count = $LOG->get_die_count();
-			$die_count++;
-			$LOG->add_entry("DIED","RANK",$RANK);
-			$LOG->add_entry("DIED","COUNT",$die_count);
-      }
-      die $_[0]."\n".
-	  "FATAL ERROR\n";
-   };
 }
 
 use Cwd;
@@ -273,31 +260,6 @@ try{
     exit($code);
 };
 $local_execn_time += (time - $time_start); 
-
-sub run_maker_mpi {
-	my $f_count = @failed;
-	while (my $fasta = $iterator->nextFasta() || shift @failed){
-	    my $tier = Process::MpiTiers->new({fasta =>$fasta,
-					    CTL_OPT => \%CTL_OPT,
-					    DS_CTL  => $DS_CTL,
-					    GFF_DB  => $GFF_DB,
-					    build   => $build},
-					   '0',
-					   'Process::MpiChunk'
-					   );
-	
-		#take a short break before processing previously failed contigs this handles 
-		#heavy processor usage when failure is related to maker process overlap
-		if($f_count != @failed){
-			sleep 1;
-	    }
-	    $f_count = @failed; #reset failure count
-	
-	    next if($tier->terminated);
-	    $tier->run_all;
-	    push(@failed, $tier->fasta) if ($tier->failed);
-	}
-}
 
 if($OPT{wq}) {
 	$time_start = time; 
@@ -1202,11 +1164,7 @@ if($OPT{wq}) {
 	work_queue::work_queue_delete($queue);
 	$wq_execn_time += (time - $time_start); 
 	print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
-} else { #code for handling non WQ based execution through MPI.
-	$time_start = time; 
-	run_maker_mpi();	
-	$local_execn_time += (time - $time_start); 
-}
+} 
 print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 print "\n\nMaker is finished!!!\n\n" unless($main::qq);
 
