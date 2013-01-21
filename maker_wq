@@ -352,7 +352,7 @@ if($OPT{wq}) {
 	
 	$wq_execn_time += (time - $time_start); 
 
-	sub SubmitTask {
+	sub SubmitWQTasks {
 		my($counter) = @_;
 
 		if($OPT{size} > 1){
@@ -871,12 +871,12 @@ if($OPT{wq}) {
 		return 1;
 	}
 
-	sub BuildSubmit {
+	sub ConvertTierToWQTask {
 		## pull $tierCtr implicitly from the global scope
 		my($howManyMore) = @_;
 		my $highLimit = $tierCtr + $howManyMore;
 		while( $tierCtr < $highLimit ) {
-			SubmitTask($tierCtr);
+			SubmitWQTasks($tierCtr);
 			$tierCtr += $OPT{size};
 		}
 	}
@@ -1100,7 +1100,7 @@ if($OPT{wq}) {
 	$local_execn_time += (time - $time_start); 
 	$time_start = time; 
 	
-	BuildSubmit($initialSubmit);
+	ConvertTierToWQTask($initialSubmit);
 	print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 	my $old_seconds = 0;
 	my %failures; 
@@ -1181,7 +1181,7 @@ if($OPT{wq}) {
 		
 		while (work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { 
 			print time.":: WQ is hungry. So going to submit task# $tierCtr \n";
-			BuildSubmit(1);
+			ConvertTierToWQTask(1);
 		}
 	}
 
