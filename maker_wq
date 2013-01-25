@@ -172,8 +172,7 @@ Work Queue Options
 
 #---global variables
 my %OPT;
-my $rank = 0;
-$RANK = $rank; #what is this used for?
+$RANK = 0; #what is this used for?
 my $size = 1;
 #\$OPT{size} = 1;
  
