@@ -258,6 +258,7 @@ if($OPT{wq}) {
 		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
 		print time." :: Work Queue debug flags set.\n";
 	}
+	
 	my $port = "9155";
 	if(defined($OPT{"port"})) {
 		$port = $OPT{"port"}; 
@@ -299,7 +300,7 @@ if($OPT{wq}) {
 	sub SubmitWQTasks {
 		my($counter) = @_;
 
-		if($OPT{size} > 1){
+		if($OPT{size} >= 1){
 			my $query_seq = ""; 
 			for(my $i = 0; $i < $OPT{size}; $i++) {
 				my $val = $counter + $i; 
@@ -381,73 +382,7 @@ if($OPT{wq}) {
 			}
 			work_queue::work_queue_submit($queue, $task);
 			print time." :: submitted task with command: $command for query seq: $query_seq\n";
-		} else {
-			my $inFile = $counter."_todo.tier";
-			
-			my $task = work_queue::work_queue_task_create("$command $counter"); 
-			work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-			print time." :: Specifying input and output files for task# $counter\n";  
-			work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
-			work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
-
-			###BEGIN - specifying the MAKER library files 
-			my $lib = "$FindBin::Bin";
-			$lib =~ s/bin/lib/; 
-			if(! -e "$wkDirPrefix/lib.tar"){
-				`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
-			}
-			work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
-			###END - specifying the MAKER library files 
-
-			###BEGIN - specifying the input files 
-			#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
-			#$tier holds all of the information for the task; 
-			my $tier = ${retrieve($inFile)};
-			submit_edb_input_files($task,$tier);	
-			submit_pdb_input_files($task,$tier);	
-			submit_ddb_input_files($task,$tier);	
-			submit_rdb_input_files($task,$tier);	
-			submit_adb_input_files($task,$tier);	
-			submit_input_files($task,$tier);	
-			submit_executable_files($task,$tier);	
-			configure_remote_execution($tier);	
-			my $root = $tier->DS_CTL->{root}; 
-
-			#store the modified variables to the tier file that will be transmitted to the workers	
-			nstore \$tier, ($inFile);
-
-			###BEGIN - specifying output
-			#need to know the remote directory name, this is generated from the sequence header
-			if(!exists($tier->{VARS}->{fasta})){
-				print STDERR "Fasta doesn't exist\n"; 
-				exit(0);
-			}
-			my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
-			my $q_def = Fasta::getDef(\$fasta); #Get fasta header
-			my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
-			my $newfile = $root."/$seq_id";
-			my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
-			if ($ds_flag){
-				use Digest::MD5 qw(md5_hex);
-
-				my $dir = "";
-				my($digest) = uc md5_hex($seq_id); # the hex string, uppercased
-				for(my $i = 0; $i < 2; $i++){
-					$dir .= substr($digest, $i*2, 2) ."/";
-				}
-				$dir .= $seq_id . "/";
-				print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
-				work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
-			} else{
-				print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
-				work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
-			}
-			$seq_ids{$seq_id} = 1; 
-			###END - specifying output
-
-			work_queue::work_queue_submit($queue, $task);
-			print time." :: submitted WQ task with command: $command, count# $counter\n";
-		}
+		} 
 		return 1;
 	}
 
