@@ -689,13 +689,7 @@ if($OPT{wq}) {
 	while(!work_queue::work_queue_empty($queue)) {
 		#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 		Proc::Signal::reap_children_by_name(9, 'maintain.pl');
-		#my $pid = `ps x | grep [m]aintain | cut -f1`;
-		#kill(9,$pid);
-		#my $pid = wait(); 
-		#if($pid != -1){
-			#kill(9, $pid); 
-			#print "Perl PID: $pid\n"; 
-		#}
+		
 		my $t = work_queue::work_queue_wait($queue, 5); 
 		my ($seconds,$microseconds) = gettimeofday; 
 		if($seconds - $old_seconds > 5){ 
