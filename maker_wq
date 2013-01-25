@@ -12,8 +12,6 @@ use vars qw($RANK $LOG $CMD_ARGS);
 my $local_execn_time = 0; 
 my $wq_execn_time = 0; 
 my $time_start = time; 
-#eval 'exec /usr/bin/env perl -w -S $0 ${1+"$@"}'
-#    if 0; # not running under some shell
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
@@ -165,7 +163,6 @@ Work Queue Options
 my %OPT;
 $RANK = 0; #what is this used for?
 my $size = 1;
-#\$OPT{size} = 1;
  
 #---Process options on the command line 
 try{
@@ -292,8 +289,6 @@ if($OPT{wq}) {
 	$wkDirPrefix .= "/";
 	my $command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
 	./maker_wq_worker";
-	#$command .= "find -name \"*.tar\" -exec tar -x --skip-old-files -f {} \\\;
-	#./maker_wq_worker";
 
 	if(!-e $datastore) {
 		`mkdir $datastore`;
@@ -367,7 +362,7 @@ if($OPT{wq}) {
 				if ($ds_flag) {
 					use Digest::MD5 qw(md5_hex);
 			
-					my $dir = ""; #Datastore::MD5::id_to_dir($seq_id);
+					my $dir = ""; 
 					my($digest) = uc md5_hex($seq_id); #the hex string, uppercased
 					for(my $j = 0; $j < 2; $j++) {
 						$dir .= substr($digest, $j*2, 2) ."/";
@@ -435,7 +430,7 @@ if($OPT{wq}) {
 			if ($ds_flag){
 				use Digest::MD5 qw(md5_hex);
 
-				my $dir = "";#Datastore::MD5::id_to_dir($seq_id);
+				my $dir = "";
 				my($digest) = uc md5_hex($seq_id); # the hex string, uppercased
 				for(my $i = 0; $i < 2; $i++){
 					$dir .= substr($digest, $i*2, 2) ."/";
@@ -768,18 +763,6 @@ if($OPT{wq}) {
 			ConvertTierToWQTask(1);
 		}
 	}
-
-	#make sure teh datastore directory actually exists prior to moving output into it. 
-	#if (!-e $datastore){`mkdir $datastore`;}
-	#move each of the output files into its correct place in the datastore
-	#foreach my $key (sort keys %seq_ids){
-	#	print "Moving $key to $datastore\n"; 
-	#	if(ref($key) eq "HASH" || ref($key) eq "ARRAY"){
-	#		next; 
-	#	}
-	#	if($key =~ "HASH"){next;}	
-	#	`mv $key $datastore`; 
-	#}
 
 	#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
 	close(LOG);
