@@ -352,12 +352,12 @@ if($OPT{wq}) {
 			submit_adb_input_files($task, $tier);	
 			submit_input_files($task, $tier);	
 			submit_executable_files($task, $tier);	
-			configure_remote_execution($tier);	
 			
 			for(my $i = 1; $i <= $OPT{size}; $i++){
 			
-				$inFile = $counter."_todo.tier";
+				my $inFile = $counter."_todo.tier";
 				work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+				my $tier = ${retrieve($inFile)};
 
 				####BEGIN - specifying the input files 
 				##TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
@@ -558,11 +558,12 @@ if($OPT{wq}) {
 				#$tier->GFF_DB->{dbfile} = "./";
 				#$tier->CTL_OPT->{_TMP} = "./";  
 				###END - changing paths
+				configure_remote_execution($tier);	
 				my $root = $tier->DS_CTL->{root}; 
 			
 				#store the modified variables to the tier file that will be transmitted to the workers	
 				nstore \$tier, ($inFile);
-			
+		
 				###BEGIN - specifying output
 				#need to know the remote directory name, this is generated from the sequence header
 				if(!exists($tier->{VARS}->{fasta})){
@@ -573,7 +574,6 @@ if($OPT{wq}) {
 				my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 				my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
 				my $newfile = $root."/$seq_id";
-				
 				my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
 				if ($ds_flag) {
 					use Digest::MD5 qw(md5_hex);
@@ -581,7 +581,7 @@ if($OPT{wq}) {
 					my $dir = ""; #Datastore::MD5::id_to_dir($seq_id);
 					my($digest) = uc md5_hex($seq_id); #the hex string, uppercased
 					for(my $j = 0; $j < 2; $j++) {
-						$dir .= substr($digest, $i*2, 2) ."/";
+						$dir .= substr($digest, $j*2, 2) ."/";
 					}
 					$dir .= $seq_id . "/";
 					print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
