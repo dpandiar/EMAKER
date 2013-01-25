@@ -724,8 +724,8 @@ if($OPT{wq}) {
 		}
 
 		if(defined($t)) {
-			my $counter = $t->{tag}; #work_queue::work_queue_task::swig_tag_get($t);
-			my $output = $t->{output}; #work_queue::work_queue_task::swig_output_get($t);
+			my $counter = $t->{tag}; 
+			my $output = $t->{output}; 
 			my $retStatus = index($output, "EXIT:");
 			if ($retStatus != -1) {
 				$retStatus = substr($output, $retStatus+5, 2);
