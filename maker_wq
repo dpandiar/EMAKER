@@ -254,14 +254,14 @@ if($OPT{wq}) {
 	use Storable qw(nstore retrieve);
 	use work_queue;
 
-	my $port = "9155";
-	if(defined($OPT{"port"})) {
-		$port = $OPT{"port"}; 
-	} 
 	if(defined($OPT{"debug"})){
 		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
 		print time." :: Work Queue debug flags set.\n";
 	}
+	my $port = "9155";
+	if(defined($OPT{"port"})) {
+		$port = $OPT{"port"}; 
+	} 
 	my $queue = work_queue::work_queue_create($port);
 	if(defined($queue)) {
 		print time." :: Work Queue listening on port $port.\n";
