@@ -56,15 +56,6 @@ use Error::Simple;
 use Process::MpiChunk;
 use Process::MpiTiers;
 use Proc::Signal;
-#use File::Temp qw(tempfile tempdir);
-#use Bio::DB::Fasta;
-#use Dumper::GFF::GFFV3;
-#use Iterator::Fasta;
-#use Iterator::GFF3;
-#use cluster;
-#use repeat_mask_seq;
-#use runlog;
-#use FastaChunker;
 
 $| = 1;
 
@@ -265,9 +256,6 @@ if($OPT{wq}) {
 
 	use Storable qw(nstore retrieve);
 	use work_queue;
-	#use FindBin;                 # locate this script
-	#use lib "/afs/crc.nd.edu/group/NDBL/athrash1/cctools/lib/perl5/site_perl/5.10.1/";  # use the parent directory
-	#use Data::Dumper;
 
 	my $port = "9155";
 	if(defined($OPT{"port"})) {
