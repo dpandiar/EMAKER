@@ -7,7 +7,7 @@ use Time::HiRes qw(gettimeofday);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
-use vars qw($RANK $LOG $CMD_ARGS);
+use vars qw($LOG $CMD_ARGS);
 
 my $local_execn_time = 0; 
 my $wq_execn_time = 0; 
@@ -160,7 +160,6 @@ Work Queue Options
 
 #---global variables
 my %OPT;
-$RANK = 0; #what is this used for?
  
 #---Process options on the command line 
 try{
