@@ -209,7 +209,6 @@ my $iterator;
 my $DS_CTL;
 my $GFF_DB;
 my $build;
-my @failed;
 
 try{
     #get arguments off the command line
