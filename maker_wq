@@ -55,7 +55,7 @@ use Process::MpiChunk;
 use Process::MpiTiers;
 use Proc::Signal;
 
-$| = 1;
+$| = 1; 
 
 my $usage = "
 Usage:
@@ -155,14 +155,11 @@ Work Queue Options
 
 ";
 
-#-------------------------------------------------------------------------------
 #------------------------------------ MAIN -------------------------------------
-#-------------------------------------------------------------------------------
 
 #---global variables
 my %OPT;
 $RANK = 0; #what is this used for?
-my $size = 1;
  
 #---Process options on the command line 
 try{
@@ -226,7 +223,7 @@ try{
     
     #--Control file processing
     #set up control options from control files
-    %CTL_OPT = GI::load_control_files(\@ctlfiles, \%OPT, $size);
+    %CTL_OPT = GI::load_control_files(\@ctlfiles, \%OPT, 1);
     
     #--open datastructure controller
     #This is where the output directory must be set
