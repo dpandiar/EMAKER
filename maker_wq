@@ -62,39 +62,15 @@ $| = 1; #turn on autoflush.
 
 my $usage = "
 Usage:
-     maker [options] <maker_opts> <maker_bopts> <maker_exe>
-
-     Maker is a program that produces gene annotations in GFF3 file format using
-     evidence such as EST alignments and protein homology.  Maker can be used to
-     produce gene annotations for new genomes as well as update annoations from
-     existing genome databases.
-
-     The three input arguments are user control files that specify how maker
-     should behave. All options for maker should be set in the control files,
-     but a few can also be set on the command line. Command line options provide
-     a convenient machanism to override commonly altered control file values.
-
-     Input files listed in the control options files must be in fasta format.
-     unless otherwise specified. Please see maker documentation to learn more
-     about control file  configuration.  Maker will automatically try and locate
-     the user control files in the current working directory if these arguments
-     are not supplied when initializing maker.
-
-     It is important to note that maker does not try and recalculated data that
-     it has already calculated.  For example, if you run an analysis twice on
-     the same dataset file you will notice that maker does not rerun any of the
-     blast analyses, but instead uses the blast analyses stored from the
-     previous run.  To force maker to rerun all analyses, use the -f flag.
-
-
-Options:
+	 maker_wq [options] <maker_opts> <maker_bopts> <maker_exe>
+     
+Maker Options:
 
      -genome|g <filename> Specify the genome file.
 
      -predictor|p <type>  Selects the predictor(s) to use when building
                           annotations.  Defines a pool of gene models for
                           annotation selection.
-
                           types: snap
                                  augustus
                                  fgenesh
@@ -152,7 +128,6 @@ Work Queue Options
      -k <integer>	 Sets the number of sequences per task for remote computation. 
  
      -d <level>  	 Sets the debug flag for Work Queue and the CCTOOLS package. For all debugging output, try 'all'.
-
 
 ";
 
@@ -681,7 +656,7 @@ while(!work_queue::work_queue_empty($queue)) {
 	}
 	
 	while (work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { 
-		print time.":: WQ is hungry. So going to submit task# $tierCtr \n";
+		print time." :: WQ is hungry. So going to submit task# $tierCtr \n";
 		ConvertTierToWQTask(1);
 	}
 }
