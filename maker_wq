@@ -244,6 +244,7 @@ if(defined($OPT{"project"})) {
 	work_queue::work_queue_specify_master_mode($queue, 1);
 	print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 }
+work_queue::work_queue_specify_log($queue, "maker_wq.stats");
 
 my $tierCtr = 0;
 my %seq_ids = {}; 
@@ -594,27 +595,6 @@ while(!work_queue::work_queue_empty($queue)) {
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 	
 	my $t = work_queue::work_queue_wait($queue, 5); 
-	my ($seconds,$microseconds) = gettimeofday; 
-	if($seconds - $old_seconds > 5){ 
-		my $stats = new work_queue::work_queue_stats();
-		work_queue::work_queue_get_stats($queue, $stats); 	
-		my $w_init = $stats->{workers_init}; 
-		my $w_ready = $stats->{workers_ready}; 
-		my $w_busy = $stats->{workers_busy}; 
-		my $t_running = $stats->{tasks_running}; 
-		my $t_waiting = $stats->{tasks_waiting}; 
-		my $t_complete = $stats->{tasks_complete}; 
-		my $total_t_dispatched = $stats->{total_tasks_dispatched}; 
-		my $total_t_complete = $stats->{total_tasks_complete}; 
-		my $total_w_joined = $stats->{total_workers_joined}; 
-		my $total_w_removed = $stats->{total_workers_removed}; 
-		my $total_bytes_sent = $stats->{total_bytes_sent}; 
-		my $total_bytes_recvd = $stats->{total_bytes_received}; 
-		
-		print LOG "$seconds.$microseconds $w_init $w_ready $w_busy $t_running $t_waiting $t_complete $total_t_dispatched $total_t_complete $total_w_joined $total_w_removed $total_bytes_sent $total_bytes_recvd\n";
-		$old_seconds = $seconds;
-	}
-
 	if(defined($t)) {
 		my $counter = $t->{tag}; 
 		my $output = $t->{output}; 
