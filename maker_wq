@@ -7,7 +7,7 @@ use Time::HiRes qw(gettimeofday);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
-use vars qw($LOG $CMD_ARGS);
+use vars qw($CMD_ARGS);
 
 my $local_execn_time = 0; 
 my $wq_execn_time = 0; 
@@ -579,8 +579,6 @@ print time." :: Highest input generated was $highestTier \n";
 
 # generate and submit however many tiers (should ideally match number of workers) to start with
 my $initialSubmit = $highestTier / 100;
-open(LOG, ">>", "logfile"); 
-print LOG "#start\n";
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
@@ -642,7 +640,6 @@ while(!work_queue::work_queue_empty($queue)) {
 }
 
 #TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
-close(LOG);
 work_queue::work_queue_delete($queue);
 $wq_execn_time += (time - $time_start); 
 print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
