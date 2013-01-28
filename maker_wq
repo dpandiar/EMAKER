@@ -293,7 +293,6 @@ sub SubmitWQTasks {
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
 	###specify the input files 
-	#TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
 	#$tier holds all of the information for the task; 
 	my $inFile = $counter."_todo.tier";
 	my $tier = ${retrieve($inFile)};
@@ -311,7 +310,6 @@ sub SubmitWQTasks {
 		work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 		my $tier = ${retrieve($inFile)};
 
-		##TODO: Here we need to include the appropriate files for actually running each MAKER work task on the remote hosts. Otherwise the jobs will fail. This is necessary since we've modified the paths in maker_wq_worker to use the local directory. 
 		configure_remote_execution($tier);	
 		my $root = $tier->DS_CTL->{root}; 
 	
