@@ -133,10 +133,8 @@ Work Queue Options
 
 #------------------------------------ MAIN -------------------------------------
 
-#---global variables
-my %OPT;
- 
 #---Process options on the command line 
+my %OPT;
 try{
     GetOptions("RM_off|R" => \$OPT{R},
 	       "force|f" => \$OPT{force},
@@ -584,7 +582,7 @@ ConvertTierToWQTask($initialSubmit);
 print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 my $old_seconds = 0;
 my %failures; 
-my $tiersTerm = 0;
+my $completed_tasks= 0;
 
 while(!work_queue::work_queue_empty($queue)) {
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
@@ -602,8 +600,8 @@ while(!work_queue::work_queue_empty($queue)) {
 		
 		### the hopeful, successful ending
 		if($retStatus == 1 || $retStatus == 0) {
-			$tiersTerm++;
-			print time." :: Finished WQ task# $counter and $tiersTerm done so far \n";
+			$completed_tasks++;
+			print time." :: Finished WQ task# $counter and $completed_tasks done so far \n";
 			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 			work_queue::work_queue_task_delete($t);
 		} else { ### tier resubmission on failure 
@@ -640,7 +638,7 @@ while(!work_queue::work_queue_empty($queue)) {
 #TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
 work_queue::work_queue_delete($queue);
 $wq_execn_time += (time - $time_start); 
-print "\n".time." :: all tasks complete :: $tiersTerm tiers in total \n";
+print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
 
 print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 print "\n\nMaker is finished!!!\n\n" unless($main::qq);
