@@ -25,7 +25,7 @@ BEGIN{
    
    #what to do on ^C
    $SIG{'INT'} = sub {
-      print STDERR "\n\nMaker aborted by user!\n\n" unless($main::qq);
+      print STDERR "\n\nMaker aborted by user!\n\n";
       exit (1);
    };    
    
@@ -56,7 +56,6 @@ use Process::MpiTiers;
 use Proc::Signal;
 use Storable qw(nstore retrieve);
 use work_queue;
-
 
 $| = 1; #turn on autoflush.
 
@@ -109,9 +108,6 @@ Maker Options:
                          A quick way to align evidence.  You then must re-run
                          MAKER to produce full GFF3 output and annotations.
 
-     -quiet|q            Silences most of maker's status messages.
-
-     -qq                 Really quiet. Silences everything but major errors.
 
      -CTL                Generate empty control files in the current directory.
 
@@ -144,14 +140,10 @@ try{
 	       "retry=i" =>\$OPT{retry},
 	       "evaluate" =>\$OPT{evaluate},
 	       "again|a" =>\$OPT{again},
-	       "quiet|q" =>\$main::quiet,
-	       "qq"    =>\$main::qq,
 	       "check" =>\$OPT{check},
 	       "base=s" =>\$OPT{out_name},
 	       "datastore!" =>\$OPT{datastore},
 	       "fast" =>\$main::fast,
-	       "dtmp" =>\$main::dtmp,
-	       "MWAS=s" =>sub {exec("$FindBin::Bin/../MWAS/bin/mwas_server $_[1]")},
 	       "CTL" => sub {GI::generate_control_files(); exit(0);},
 	       "help|?" => sub {print $usage; exit(0)},
 	       "port=i" => \$OPT{port},
@@ -161,7 +153,6 @@ try{
  	       "k=i" => \$OPT{size}
 	       );
 
-    $main::quiet = 1 if($main::qq);
 } catch Error::Simple with{
     my $E = shift;
     print STDERR $E->{-text};
@@ -278,8 +269,8 @@ sub SubmitWQTasks {
 	}
 	print time." :: Creating WQ task for query sequence(s) $query_seq\n";  
 	my $task = work_queue::work_queue_task_create("$command $query_seq"); 
-	work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-	print time." :: Specifying input and output files for WQ task# $counter\n";  
+	work_queue::work_queue_task_specify_tag($task, "$query_seq"); #parm2 must be a string
+	print time." :: Specifying input and output files for WQ task# $query_seq\n";  
 	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 	
 	#specify the MAKER library files 
@@ -573,7 +564,7 @@ my $highestTier = GenTiers();
 print time." :: Highest input generated was $highestTier \n";
 
 # generate and submit however many tiers (should ideally match number of workers) to start with
-my $initialSubmit = $highestTier / 100;
+my $initialSubmit = 100;
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
@@ -604,9 +595,6 @@ while(!work_queue::work_queue_empty($queue)) {
 			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 			work_queue::work_queue_task_delete($t);
 		} else { #tier resubmission on failure 
-			### save the worker's output for later dissection
-			$/ = "";
-
 			if($retStatus == -1) {
 				print time." :: Failed, resubmitting WQ task# $counter\n";
 				$failures{$counter} += 1; 
@@ -634,13 +622,12 @@ while(!work_queue::work_queue_empty($queue)) {
 	}
 }
 
-#TODO: we should add some component to combine the resultant GFF files into one final output file. currently running the serial version of maker to see what their final output looks like. if they produce a GFF, I'll look for the function they use in order to be consistent. Otherwise I will do it myself. 
 work_queue::work_queue_delete($queue);
 $wq_execn_time += (time - $time_start); 
 print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
 
 print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
-print "\n\nMaker is finished!\n\n" unless($main::qq);
+print "\n\nMaker is finished!\n\n";
 
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
