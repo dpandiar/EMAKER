@@ -264,7 +264,7 @@ sub SubmitWQTasks {
 	my($counter) = @_;
 
 	if($OPT{size} < 1) {
-		print STDERR "Invalid query size.\n"; 
+		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
 	}
 	
@@ -282,7 +282,7 @@ sub SubmitWQTasks {
 	print time." :: Specifying input and output files for WQ task# $counter\n";  
 	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 	
-	###specifying the MAKER library files 
+	#specify the MAKER library files 
 	my $lib = "$FindBin::Bin";
 	$lib =~ s/bin/lib/; 
 	if(! -e "$wkDirPrefix/lib.tar"){
@@ -290,10 +290,10 @@ sub SubmitWQTasks {
 	}
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
-	###specify the input files 
-	#$tier holds all of the information for the task; 
 	my $inFile = $counter."_todo.tier";
+	#$tier holds all of the information for the task; 
 	my $tier = ${retrieve($inFile)};
+	#specify the input files 
 	submit_edb_input_files($task, $tier);
 	submit_pdb_input_files($task, $tier);	
 	submit_ddb_input_files($task, $tier);	
@@ -314,12 +314,12 @@ sub SubmitWQTasks {
 		#store the modified variables to the tier file that will be transmitted to the workers	
 		nstore \$tier, ($inFile);
 
-		###BEGIN - specifying output
-		#need to know the remote directory name, this is generated from the sequence header
+		#start specifying the output
 		if(!exists($tier->{VARS}->{fasta})){
 			print STDERR "Fasta doesn't exist\n"; 
 			exit(0);
 		}
+		#need to know the remote directory name, this is generated from the sequence header
 		my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
 		my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 		my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
@@ -341,7 +341,6 @@ sub SubmitWQTasks {
 			work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 		}
 		$seq_ids{$seq_id} = 1; 
-		###END - specifying output
 		
 		$counter++; 
 	}
@@ -352,7 +351,7 @@ sub SubmitWQTasks {
 }
 
 sub ConvertTierToWQTask {
-	## pull $tierCtr implicitly from the global scope
+	# pull $tierCtr implicitly from the global scope
 	my($howManyMore) = @_;
 	my $highLimit = $tierCtr + $howManyMore;
 	while( $tierCtr < $highLimit ) {
@@ -362,7 +361,7 @@ sub ConvertTierToWQTask {
 }
 
 sub GenTiers {
-	## $iterator is implicitly global
+	# $iterator is implicitly global
 	print time." :: Generating serialized tier inputs \n";
 	my $tier;
 	my $numTiers = 0;
@@ -598,13 +597,13 @@ while(!work_queue::work_queue_empty($queue)) {
 			$retStatus = sprintf("%d", $retStatus);
 		}
 		
-		### the hopeful, successful ending
+		#the hopeful, successful ending
 		if($retStatus == 1 || $retStatus == 0) {
 			$completed_tasks++;
 			print time." :: Finished WQ task# $counter and $completed_tasks done so far \n";
 			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 			work_queue::work_queue_task_delete($t);
-		} else { ### tier resubmission on failure 
+		} else { #tier resubmission on failure 
 			### save the worker's output for later dissection
 			$/ = "";
 
@@ -613,11 +612,11 @@ while(!work_queue::work_queue_empty($queue)) {
 				$failures{$counter} += 1; 
 				my $tier = ${retrieve($counter."_todo.tier")};
 				
-				### if it failed, we want to force recomputation
+				#if it failed, we want to force recomputation
 				$tier->CTL_OPT->{ 'force' } = 1; 
 				nstore \$tier, ($counter."_todo.tier");
 			} else { 
-				### general completion
+				#general completion
 				print time." :: WQ task# $counter completed, not terminated since it returned $retStatus\n";
 			}
 			if($failures{$counter} < 5){
@@ -641,7 +640,7 @@ $wq_execn_time += (time - $time_start);
 print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
 
 print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
-print "\n\nMaker is finished!!!\n\n" unless($main::qq);
+print "\n\nMaker is finished!\n\n" unless($main::qq);
 
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
