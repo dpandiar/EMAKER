@@ -562,14 +562,14 @@ sub configure_remote_execution {
 $time_start = time; 
 my $highestTier = GenTiers();
 print time." :: Highest input generated was $highestTier \n";
-
-# generate and submit however many tiers (should ideally match number of workers) to start with
-my $initialSubmit = 100;
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
+# generate and submit 100 tasks initially.
+my $initialSubmit = 100;
 ConvertTierToWQTask($initialSubmit);
 print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
+
 my $old_seconds = 0;
 my %failures; 
 my $completed_tasks= 0;
