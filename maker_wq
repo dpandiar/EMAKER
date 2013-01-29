@@ -596,10 +596,9 @@ while(!work_queue::work_queue_empty($queue)) {
 			work_queue::work_queue_task_delete($t);
 		} else { #tier resubmission on failure 
 			if($retStatus == -1) {
-				print time." :: Failed, resubmitting WQ task# $counter\n";
 				$failures{$counter} += 1; 
+				###DO WE NEED THIS BELOW?	
 				my $tier = ${retrieve($counter."_todo.tier")};
-				
 				#if it failed, we want to force recomputation
 				$tier->CTL_OPT->{ 'force' } = 1; 
 				nstore \$tier, ($counter."_todo.tier");
@@ -608,6 +607,7 @@ while(!work_queue::work_queue_empty($queue)) {
 				print time." :: WQ task# $counter completed, not terminated since it returned $retStatus\n";
 			}
 			if($failures{$counter} < 5){
+				print time." :: Failed, resubmitting WQ task# $counter\n";
 				work_queue::work_queue_submit($queue, $t);
 			} else{
 				print time." :: WQ task# $counter has failed too many times\n"; 
