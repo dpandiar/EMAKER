@@ -232,7 +232,6 @@ work_queue::work_queue_specify_log($queue, "maker_wq.stats");
 
 my $tiers_per_task = $OPT{size}; 
 my $tier_task_boundary = 0;
-my %seq_ids = {}; 
 my $datastore = $DS_CTL->{root}; 
 my $wkDirPrefix = cwd();
 chomp($wkDirPrefix); 
@@ -326,7 +325,6 @@ sub SubmitWQTask {
 			print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
 			work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 		}
-		$seq_ids{$seq_id} = 1; 
 		
 		$tier_task_boundary++; 
 	}
@@ -588,7 +586,7 @@ while(!work_queue::work_queue_empty($queue)) {
 		#the hopeful, successful ending
 		if($retStatus == 1 || $retStatus == 0) {
 			$completed_tasks++;
-			print time." :: Finished WQ task# $counter and $completed_tasks done so far \n";
+			print time." :: Finished WQ task# $counter.\n";
 			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 			work_queue::work_queue_task_delete($t);
 		} else { #tier resubmission on failure 
