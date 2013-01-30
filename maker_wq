@@ -235,6 +235,7 @@ if(defined($OPT{"project"})) {
 }
 work_queue::work_queue_specify_log($queue, "maker_wq.stats");
 
+my $tiers_per_task = $OPT{size}; 
 my $tier_task_boundary = 0;
 my %seq_ids = {}; 
 my $datastore = $DS_CTL->{root}; 
@@ -251,17 +252,16 @@ if(!-e $datastore) {
 
 $wq_execn_time += (time - $time_start); 
 
-sub SubmitWQTasks {
-	my($counter) = @_;
-
-	if($OPT{size} < 1) {
+sub SubmitWQTask {
+	my($tiers_in_task) = @_;
+	if($tiers_in_task < 1) {
 		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
 	}
 	
 	my $query_seq = ""; 
-	for(my $i = 0; $i < $OPT{size}; $i++) {
-		my $val = $counter + $i; 
+	for(my $i = 0; $i < $tiers_in_task; $i++) {
+		my $val = $tier_task_boundary + $i; 
 		$query_seq .= "$val "; 
 	}
 	if($query_seq eq ""){
@@ -269,8 +269,8 @@ sub SubmitWQTasks {
 	}
 	print time." :: Creating WQ task for query sequence(s) $query_seq\n";  
 	my $task = work_queue::work_queue_task_create("$command $query_seq"); 
-	work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
-	print time." :: Specifying input and output files for WQ task# $counter\n";  
+	work_queue::work_queue_task_specify_tag($task, "$tier_task_boundary"); #parm2 must be a string
+	print time." :: Specifying input and output files for WQ task# $tier_task_boundary\n";  
 	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 	
 	#specify the MAKER library files 
@@ -281,7 +281,7 @@ sub SubmitWQTasks {
 	}
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
-	my $inFile = $counter."_todo.tier";
+	my $inFile = $tier_task_boundary."_todo.tier";
 	#$tier holds all of the information for the task; 
 	my $tier = ${retrieve($inFile)};
 	#specify the input files 
@@ -293,9 +293,9 @@ sub SubmitWQTasks {
 	submit_input_files($task, $tier);	
 	submit_executable_files($task, $tier);	
 	
-	for(my $i = 1; $i <= $OPT{size}; $i++){
+	for(my $i = 1; $i <= $tiers_in_task; $i++){
 	
-		my $inFile = $counter."_todo.tier";
+		my $inFile = $tier_task_boundary."_todo.tier";
 		work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
 		my $tier = ${retrieve($inFile)};
 
@@ -333,7 +333,7 @@ sub SubmitWQTasks {
 		}
 		$seq_ids{$seq_id} = 1; 
 		
-		$counter++; 
+		$tier_task_boundary++; 
 	}
 	work_queue::work_queue_submit($queue, $task);
 	print time." :: submitted task with command: $command for query seq: $query_seq\n";
@@ -345,9 +345,13 @@ sub SubmitTiers {
 	# pull $tier_task_boundary implicitly from the global scope
 	my($tiers_to_submit) = @_;
 	my $submitted_tiers = 0;
+	my $tiers_in_task = $tiers_per_task;	
 	while($submitted_tiers < $tiers_to_submit) {
-		SubmitWQTasks($tier_task_boundary);
-		$tier_task_boundary += $OPT{size};
+		if (($tiers_to_submit - $submitted_tiers) < $tiers_per_task) {
+			$tiers_in_task = ($tiers_to_submit - $submitted_tiers);
+		}
+		SubmitWQTask($tiers_in_task);
+		$submitted_tiers += $tiers_in_task;
 	}
 }
 
@@ -618,7 +622,7 @@ while(!work_queue::work_queue_empty($queue)) {
 	
 	while (work_queue::work_queue_hungry($queue) && $tier_task_boundary < $highestTier) { 
 		print time." :: WQ is hungry. So going to submit task# $tier_task_boundary \n";
-		SubmitTiers(1);
+		SubmitTiers($tiers_per_task);
 	}
 }
 
