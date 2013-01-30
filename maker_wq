@@ -7,7 +7,6 @@ use Time::HiRes qw(gettimeofday);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
-use vars qw($CMD_ARGS);
 
 my $local_execn_time = 0; 
 my $wq_execn_time = 0; 
@@ -20,8 +19,6 @@ BEGIN{
    if (not ($ENV{CGL_GO_SOURCE})) {
       $ENV{CGL_GO_SOURCE} = "$FindBin::Bin/../lib/CGL/gene_ontology.obo"
    }
-   
-   $CMD_ARGS = join(' ', @ARGV);
    
    #what to do on ^C
    $SIG{'INT'} = sub {
@@ -40,22 +37,20 @@ BEGIN{
 
 use Cwd;
 use Cwd qw(abs_path); 
-use FileHandle;
-use File::Path;
 use Getopt::Long qw(:config no_ignore_case);
-use GI;
 use Iterator::Any;
-use Fasta;
-use maker::auto_annotator;
-use ds_utility;
-use GFFDB;
 use Error qw(:try);
 use Error::Simple;
-use Process::MpiChunk;
-use Process::MpiTiers;
-use Proc::Signal;
 use Storable qw(nstore retrieve);
 use work_queue;
+#external libraries below.
+use Proc::Signal;
+use GI;
+use Fasta;
+use ds_utility;
+use GFFDB;
+use Process::MpiChunk;
+use Process::MpiTiers;
 
 $| = 1; #turn on autoflush.
 
@@ -165,10 +160,10 @@ if(!defined $OPT{size}){
 
 #variables that are persistent outside of try
 my %CTL_OPT;
-my $iterator;
 my $DS_CTL;
 my $GFF_DB;
 my $build;
+my $iterator;
 
 try{
     #get arguments off the command line
