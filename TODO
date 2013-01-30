@@ -1,4 +1,3 @@
-2. Cut down dependencies.
-3. Create and store tier files in its own directory.
-4. Clean up the loop variable - counter, i, etc.
-5. Reorganize global variables.
+1. Cut down dependencies.
+2. Create and store tier files in its own directory.
+3. Reorganize global variables.
