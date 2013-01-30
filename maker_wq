@@ -235,7 +235,7 @@ if(defined($OPT{"project"})) {
 }
 work_queue::work_queue_specify_log($queue, "maker_wq.stats");
 
-my $tierCtr = 0;
+my $tier_task_boundary = 0;
 my %seq_ids = {}; 
 my $datastore = $DS_CTL->{root}; 
 my $wkDirPrefix = cwd();
@@ -341,13 +341,13 @@ sub SubmitWQTasks {
 	return 1;
 }
 
-sub ConvertTierToWQTask {
-	# pull $tierCtr implicitly from the global scope
-	my($howManyMore) = @_;
-	my $highLimit = $tierCtr + $howManyMore;
-	while( $tierCtr < $highLimit ) {
-		SubmitWQTasks($tierCtr);
-		$tierCtr += $OPT{size};
+sub SubmitTiers {
+	# pull $tier_task_boundary implicitly from the global scope
+	my($tiers_to_submit) = @_;
+	my $submitted_tiers = 0;
+	while($submitted_tiers < $tiers_to_submit) {
+		SubmitWQTasks($tier_task_boundary);
+		$tier_task_boundary += $OPT{size};
 	}
 }
 
@@ -567,7 +567,7 @@ $time_start = time;
 
 # generate and submit 100 tasks initially.
 my $initialSubmit = ($highestTier < 100 ? $highestTier : 100);
-ConvertTierToWQTask($initialSubmit);
+SubmitTiers($initialSubmit);
 print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 
 my $old_seconds = 0;
@@ -616,9 +616,9 @@ while(!work_queue::work_queue_empty($queue)) {
 	} else { #
 	}
 	
-	while (work_queue::work_queue_hungry($queue) && $tierCtr < $highestTier) { 
-		print time." :: WQ is hungry. So going to submit task# $tierCtr \n";
-		ConvertTierToWQTask(1);
+	while (work_queue::work_queue_hungry($queue) && $tier_task_boundary < $highestTier) { 
+		print time." :: WQ is hungry. So going to submit task# $tier_task_boundary \n";
+		SubmitTiers(1);
 	}
 }
 
