@@ -574,10 +574,8 @@ my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
 SubmitTiers($init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 
-my $old_seconds = 0;
 my %failures; 
 my $completed_tasks= 0;
-
 while(!work_queue::work_queue_empty($queue)) {
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
