@@ -622,7 +622,7 @@ while(!work_queue::work_queue_empty($queue)) {
 	
 	while (work_queue::work_queue_hungry($queue) && $tier_task_boundary < $total_tiers) { 
 		print time." :: WQ is hungry. So going to submit task# $tier_task_boundary \n";
-		SubmitTiers($tiers_per_task);
+		SubmitWQTask($tiers_per_task);
 	}
 }
 
