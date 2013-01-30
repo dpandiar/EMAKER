@@ -232,7 +232,6 @@ work_queue::work_queue_specify_log($queue, "maker_wq.stats");
 
 my $tiers_per_task = $OPT{size}; 
 my $tier_task_boundary = 0;
-my $datastore = $DS_CTL->{root}; 
 my $wkDirPrefix = cwd();
 chomp($wkDirPrefix); 
 $wkDirPrefix =~ s/\n//g;
@@ -240,6 +239,7 @@ $wkDirPrefix .= "/";
 my $command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
 ./maker_wq_worker";
 
+my $datastore = $DS_CTL->{root}; 
 if(!-e $datastore) {
 	`mkdir $datastore`;
 }
@@ -335,7 +335,6 @@ sub SubmitWQTask {
 }
 
 sub SubmitTiers {
-	# pull $tier_task_boundary implicitly from the global scope
 	my($tiers_to_submit) = @_;
 	my $submitted_tiers = 0;
 	my $tiers_in_task = $tiers_per_task;	
