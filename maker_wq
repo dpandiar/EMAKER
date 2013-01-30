@@ -569,7 +569,7 @@ print time." :: Total number of tiers generated was $total_tiers \n";
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
-# generate and submit 100 tasks initially.
+# submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
 my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
 SubmitTiers($init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
