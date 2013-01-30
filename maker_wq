@@ -564,15 +564,15 @@ sub configure_remote_execution {
 }
 
 $time_start = time; 
-my $highestTier = GenTiers();
-print time." :: Highest input generated was $highestTier \n";
+my $total_tiers = GenTiers();
+print time." :: Total number of tiers generated was $total_tiers \n";
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
 # generate and submit 100 tasks initially.
-my $initialSubmit = ($highestTier < 100 ? $highestTier : 100);
-SubmitTiers($initialSubmit);
-print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
+my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
+SubmitTiers($init_tiers_submit);
+print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 
 my $old_seconds = 0;
 my %failures; 
@@ -620,7 +620,7 @@ while(!work_queue::work_queue_empty($queue)) {
 	} else { #
 	}
 	
-	while (work_queue::work_queue_hungry($queue) && $tier_task_boundary < $highestTier) { 
+	while (work_queue::work_queue_hungry($queue) && $tier_task_boundary < $total_tiers) { 
 		print time." :: WQ is hungry. So going to submit task# $tier_task_boundary \n";
 		SubmitTiers($tiers_per_task);
 	}
