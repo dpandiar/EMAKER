@@ -269,8 +269,8 @@ sub SubmitWQTasks {
 	}
 	print time." :: Creating WQ task for query sequence(s) $query_seq\n";  
 	my $task = work_queue::work_queue_task_create("$command $query_seq"); 
-	work_queue::work_queue_task_specify_tag($task, "$query_seq"); #parm2 must be a string
-	print time." :: Specifying input and output files for WQ task# $query_seq\n";  
+	work_queue::work_queue_task_specify_tag($task, "$counter"); #parm2 must be a string
+	print time." :: Specifying input and output files for WQ task# $counter\n";  
 	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 	
 	#specify the MAKER library files 
@@ -566,7 +566,7 @@ $local_execn_time += (time - $time_start);
 $time_start = time; 
 
 # generate and submit 100 tasks initially.
-my $initialSubmit = 100;
+my $initialSubmit = ($highestTier < 100 ? $highestTier : 100);
 ConvertTierToWQTask($initialSubmit);
 print time." :: Initial submission to Work Queue is $initialSubmit tiers \n";
 
