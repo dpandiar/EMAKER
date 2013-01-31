@@ -334,8 +334,8 @@ sub SubmitWQTask {
 	return 1;
 }
 
-sub SubmitTiers {
-	my($tiers_to_submit) = @_;
+sub AnnotateTiers {
+	my($start_tier, $tiers_to_submit) = @_;
 	my $submitted_tiers = 0;
 	my $tiers_in_task = $tiers_per_task;	
 	while($submitted_tiers < $tiers_to_submit) {
@@ -345,6 +345,7 @@ sub SubmitTiers {
 		SubmitWQTask($tiers_in_task);
 		$submitted_tiers += $tiers_in_task;
 	}
+	return ($start_tier + $submitted_tiers - 1); #return last annotated tier.
 }
 
 sub GenTiers {
@@ -561,9 +562,10 @@ print time." :: Total number of tiers generated was $total_tiers \n";
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
+my $start_tier_to_annotate = 0;
 # submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
 my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
-SubmitTiers($init_tiers_submit);
+my $last_annotated_tier = AnnotateTiers($start_tier_to_annotate, $init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 my $tiers_submitted = $init_tiers_submit;
 
