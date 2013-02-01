@@ -277,26 +277,17 @@ sub SubmitWQTask {
 	my $inFile = $tier_to_submit."_todo.tier";
 	#$tier holds all of the information for the task; 
 	my $tier = ${retrieve($inFile)};
-	#specify the input files 
-	submit_edb_input_files($task, $tier);
-	submit_pdb_input_files($task, $tier);	
-	submit_ddb_input_files($task, $tier);	
-	submit_rdb_input_files($task, $tier);	
-	submit_adb_input_files($task, $tier);	
-	submit_input_files($task, $tier);	
-	submit_executable_files($task, $tier);	
-	
+	#specify the base files required for each task
+	submit_base_files($task, $tier);
+
 	for(my $i = 0; $i < $tiers_in_task; $i++){
 	
 		my $inFile = $tier_to_submit."_todo.tier";
 		work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
+		
 		my $tier = ${retrieve($inFile)};
-
 		configure_remote_execution($tier);	
-		my $root = $tier->DS_CTL->{root}; 
-	
-		#store the modified variables to the tier file that will be transmitted to the workers	
-		nstore \$tier, ($inFile);
+		nstore \$tier, ($inFile); #store the modified variables to the tier file that is transmitted to workers	
 
 		#start specifying the output
 		if(!exists($tier->{VARS}->{fasta})){
@@ -307,6 +298,7 @@ sub SubmitWQTask {
 		my $fasta = Fasta::ucFasta(\$tier->{VARS}->{fasta}); #build uppercase fasta
 		my $q_def = Fasta::getDef(\$fasta); #Get fasta header
 		my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
+		my $root = $tier->DS_CTL->{root}; 
 		my $newfile = $root."/$seq_id";
 		my $ds_flag  = (exists($tier->CTL_OPT->{datastore})) ? $tier->CTL_OPT->{datastore} : 1;
 		if ($ds_flag) {
@@ -366,6 +358,19 @@ sub GenTiers {
 	}
 	return $numTiers;
 }
+
+sub submit_base_files {
+	my ($task, $tier) = @_;
+	
+	submit_edb_input_files($task, $tier);
+	submit_pdb_input_files($task, $tier);	
+	submit_ddb_input_files($task, $tier);	
+	submit_rdb_input_files($task, $tier);	
+	submit_adb_input_files($task, $tier);	
+	submit_input_files($task, $tier);	
+	submit_executable_files($task, $tier);	
+}
+
 
 sub submit_edb_input_files {
 	my($task, $tier) = @_;
