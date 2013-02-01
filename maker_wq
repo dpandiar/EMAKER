@@ -278,12 +278,12 @@ sub SubmitWQTask {
 	#$tier holds all of the information for the task; 
 	my $tier_ds = ${retrieve($tierFile)};
 	#specify the base files required for each task
-	submit_base_files($task, $tier_ds);
+	submit_input_base_files($task, $tier_ds);
 
 	for(my $i = 0; $i < $tiers_in_task; $i++){
 
-		submit_tier_files($task, $tier_to_submit);
-		configure_remote_execution($tier_to_submit);	
+		submit_input_tier_files($task, $tier_to_submit);
+		configure_remote_tier_annotation($tier_to_submit);	
 
 		#start specifying the output
 		if(!exists($tier_ds->{VARS}->{fasta})){
@@ -355,13 +355,13 @@ sub GenTiers {
 	return $numTiers;
 }
 
-sub submit_tier_files($task, $tier_to_submit) {
+sub submit_input_tier_files($task, $tier_to_submit) {
 	my ($task, $tier) = @_;
 	my $tierFile = $tier."_todo.tier";
 	work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$tierFile, $tierFile, 0, 0);
 }
 
-sub submit_base_files {
+sub submit_input_base_files {
 	my ($task, $tier_ds) = @_;
 	
 	submit_edb_input_files($task, $tier_ds);
@@ -544,7 +544,7 @@ sub submit_executable_files {
 	}
 }
 
-sub configure_remote_execution {
+sub configure_remote_tier_annotation{
 	my($tier) = @_;
 	my $tierFile = $tier."_todo.tier";
 	my $tier_ds = ${retrieve($tierFile)};
