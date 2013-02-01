@@ -274,20 +274,16 @@ sub SubmitWQTask {
 	}
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
-	my $inFile = $tier_to_submit."_todo.tier";
+	my $tierFile = $tier_to_submit."_todo.tier";
 	#$tier holds all of the information for the task; 
-	my $tier_ds = ${retrieve($inFile)};
+	my $tier_ds = ${retrieve($tierFile)};
 	#specify the base files required for each task
 	submit_base_files($task, $tier_ds);
 
 	for(my $i = 0; $i < $tiers_in_task; $i++){
-	
-		my $inFile = $tier_to_submit."_todo.tier";
-		work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$inFile, $inFile, 0, 0);
-		
-		my $tier_ds = ${retrieve($inFile)};
-		configure_remote_execution($tier_ds);	
-		nstore \$tier_ds, ($inFile); #store the modified variables to the tier file that is transmitted to workers	
+
+		submit_tier_files($task, $tier_to_submit);
+		configure_remote_execution($tier_to_submit);	
 
 		#start specifying the output
 		if(!exists($tier_ds->{VARS}->{fasta})){
@@ -357,6 +353,12 @@ sub GenTiers {
 		$numTiers++;
 	}
 	return $numTiers;
+}
+
+sub submit_tier_files($task, $tier_to_submit) {
+	my ($task, $tier) = @_;
+	my $tierFile = $tier."_todo.tier";
+	work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$tierFile, $tierFile, 0, 0);
 }
 
 sub submit_base_files {
@@ -543,7 +545,9 @@ sub submit_executable_files {
 }
 
 sub configure_remote_execution {
-	my($tier_ds) = @_;
+	my($tier) = @_;
+	my $tierFile = $tier."_todo.tier";
+	my $tier_ds = ${retrieve($tierFile)};
 	$tier_ds->CTL_OPT->{out_name} = "."; 
 	$tier_ds->CTL_OPT->{out_base} = "."; 
 	$tier_ds->CTL_OPT->{the_void} = ".";
@@ -558,6 +562,8 @@ sub configure_remote_execution {
 	$tier_ds->CTL_OPT->{CWD} = ".";  
 	$tier_ds->GFF_DB->{dbfile} = "./";
 	$tier_ds->CTL_OPT->{_TMP} = "./";  
+	
+	nstore \$tier_ds, ($tierFile); #store the modified variables to the tier file that is transmitted to workers	
 }
 
 $time_start = time; 
