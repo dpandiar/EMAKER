@@ -263,22 +263,9 @@ sub SubmitWQTask {
 	print time." :: Creating WQ task for query sequence(s) $query_seq\n";  
 	my $task = work_queue::work_queue_task_create("$command $query_seq"); 
 	work_queue::work_queue_task_specify_tag($task, "$tier_to_submit"); #parm2 must be a string
-	print time." :: Specifying input and output files for WQ task# $tier_to_submit\n";  
-	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 	
-	#specify the MAKER library files 
-	my $lib = "$FindBin::Bin";
-	$lib =~ s/bin/lib/; 
-	if(! -e "$wkDirPrefix/lib.tar"){
-		`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
-	}
-	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
-
-	my $tierFile = $tier_to_submit."_todo.tier";
-	#$tier holds all of the information for the task; 
-	my $tier_ds = ${retrieve($tierFile)};
 	#specify the base files required for each task
-	submit_input_base_files($task, $tier_ds);
+	submit_input_base_files($task, $tier_to_submit);
 
 	for(my $i = 0; $i < $tiers_in_task; $i++){
 
@@ -286,6 +273,8 @@ sub SubmitWQTask {
 		configure_remote_tier_annotation($tier_to_submit);	
 
 		#start specifying the output
+		my $tierFile = $tier_to_submit."_todo.tier";
+		my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
 		if(!exists($tier_ds->{VARS}->{fasta})){
 			print STDERR "Fasta doesn't exist\n"; 
 			exit(0);
@@ -355,15 +344,29 @@ sub GenTiers {
 	return $numTiers;
 }
 
-sub submit_input_tier_files($task, $tier_to_submit) {
+sub submit_input_tier_files {
 	my ($task, $tier) = @_;
 	my $tierFile = $tier."_todo.tier";
 	work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$tierFile, $tierFile, 0, 0);
 }
 
 sub submit_input_base_files {
-	my ($task, $tier_ds) = @_;
+	my ($task, $tier) = @_;
 	
+	print time." :: Specifying input files required for WQ task# $tier\n";  
+	
+	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
+	
+	#specify the MAKER library files 
+	my $lib = "$FindBin::Bin";
+	$lib =~ s/bin/lib/; 
+	if(! -e "$wkDirPrefix/lib.tar") {
+		`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
+	}
+	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
+
+	my $tierFile = $tier."_todo.tier";
+	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
 	submit_edb_input_files($task, $tier_ds);
 	submit_pdb_input_files($task, $tier_ds);	
 	submit_ddb_input_files($task, $tier_ds);	
@@ -372,7 +375,6 @@ sub submit_input_base_files {
 	submit_input_files($task, $tier_ds);	
 	submit_executable_files($task, $tier_ds);	
 }
-
 
 sub submit_edb_input_files {
 	my($task, $tier_ds) = @_;
