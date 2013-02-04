@@ -215,10 +215,10 @@ $time_start = time;
 
 my $queue = setup_workqueue();
 
-my $start_tier_to_annotate = 0;
+my $last_annotated_tier = 0;
 # submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
 my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
-my $last_annotated_tier = AnnotateTiers($start_tier_to_annotate, $init_tiers_submit);
+$last_annotated_tier = AnnotateTiers($last_annotated_tier, $init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 my $tiers_submitted = $init_tiers_submit;
 
