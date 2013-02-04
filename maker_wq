@@ -593,44 +593,11 @@ my $completed_tasks= 0;
 while(!work_queue::work_queue_empty($queue)) {
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
-	
-	my $t = work_queue::work_queue_wait($queue, 5); 
-	if(defined($t)) {
-		my $counter = $t->{tag}; 
-		my $output = $t->{output}; 
-		my $retStatus = index($output, "EXIT:");
-		if ($retStatus != -1) {
-			$retStatus = substr($output, $retStatus+5, 2);
-			$retStatus = sprintf("%d", $retStatus);
-		}
-		
-		#the hopeful, successful ending
-		if($retStatus == 1 || $retStatus == 0) {
-			$completed_tasks++;
-			print time." :: Finished WQ task# $counter.\n";
-			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
-			work_queue::work_queue_task_delete($t);
-		} else { #tier resubmission on failure 
-			if($retStatus == -1) {
-				$failures{$counter} += 1; 
-				###DO WE NEED THIS BELOW?	
-				my $tier_ds = ${retrieve($counter."_todo.tier")};
-				#if it failed, we want to force recomputation
-				$tier_ds->CTL_OPT->{ 'force' } = 1; 
-				nstore \$tier_ds, ($counter."_todo.tier");
-			} else { 
-				#general completion
-				print time." :: WQ task# $counter completed, not terminated since it returned $retStatus\n";
-			}
-			if($failures{$counter} < 5){
-				print time." :: Failed, resubmitting WQ task# $counter\n";
-				work_queue::work_queue_submit($queue, $t);
-			} else{
-				print time." :: WQ task# $counter has failed too many times\n"; 
-			}
-		}
-	} else { #
-	}
+
+	my $return_val = process_annotated_tier_task($queue, 5); #second arg represents timeout
+	if($return_val) {	
+		$completed_tasks++;
+	}	
 	
 	while (work_queue::work_queue_hungry($queue) && $tiers_submitted < $total_tiers) { 
 		print time." :: WQ is hungry. So going to submit a task.\n";
@@ -644,9 +611,48 @@ $wq_execn_time += (time - $time_start);
 print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
 
 print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
-print "\n\nMaker is finished!\n\n";
 
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+
+sub process_annotated_tier_task {
+	my($queue, $timeout) = @_;
+
+	my $t = work_queue::work_queue_wait($queue, $timeout); 
+	if(defined($t)) {
+		my $counter = $t->{tag}; 
+		my $output = $t->{output}; 
+		my $retStatus = index($output, "EXIT:");
+		if ($retStatus != -1) {
+			$retStatus = substr($output, $retStatus+5, 2);
+			$retStatus = sprintf("%d", $retStatus);
+		}
+		if($retStatus == 0 || $retStatus == 1) {
+			print time." :: Finished WQ task# $counter.\n";
+			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
+			work_queue::work_queue_task_delete($t);
+			return 1;
+		} else { #tier resubmission on failure 
+			if($retStatus == -1) {
+				$failures{$counter} += 1; 
+				###DO WE NEED THIS BELOW?	
+				my $tier_ds = ${retrieve($counter."_todo.tier")};
+				#if it failed, we want to force recomputation
+				$tier_ds->CTL_OPT->{ 'force' } = 1; 
+				nstore \$tier_ds, ($counter."_todo.tier");
+			} else { 
+				print time." :: WQ task# $counter completed, not terminated since it returned $retStatus\n";
+			}
+			if($failures{$counter} < 5){
+				print time." :: Failed, resubmitting WQ task# $counter\n";
+				work_queue::work_queue_submit($queue, $t);
+			} else{
+				print time." :: WQ task# $counter has failed too many times\n"; 
+				work_queue::work_queue_task_delete($t);
+			}
+		}
+	} 
+	return 0;
+}
 
 exit(0);
