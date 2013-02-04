@@ -248,6 +248,26 @@ sub get_wkdir {
 	return $wkdir;
 }
 
+sub GenTiers {
+	# $iterator is implicitly global
+	print time." :: Generating serialized tier inputs \n";
+	my $tier_ds;
+	my $numTiers = 0;
+	while (my $fasta = $iterator->nextFasta() ) {
+		$tier_ds = Process::MpiTiers->new({fasta =>$fasta,
+			CTL_OPT => \%CTL_OPT,
+			DS_CTL  => $DS_CTL,
+			GFF_DB  => $GFF_DB,
+			build   => $build},
+		   '0',
+		   'Process::MpiChunk'
+		   );
+		nstore \$tier_ds, ($numTiers."_todo.tier");
+		$numTiers++;
+	}
+	return $numTiers;
+}
+
 sub setup_workqueue {
 	if(defined($OPT{"debug"})){
 		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
@@ -277,26 +297,6 @@ sub setup_workqueue {
 	}
 	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
 	return $wq;
-}
-
-sub GenTiers {
-	# $iterator is implicitly global
-	print time." :: Generating serialized tier inputs \n";
-	my $tier_ds;
-	my $numTiers = 0;
-	while (my $fasta = $iterator->nextFasta() ) {
-		$tier_ds = Process::MpiTiers->new({fasta =>$fasta,
-			CTL_OPT => \%CTL_OPT,
-			DS_CTL  => $DS_CTL,
-			GFF_DB  => $GFF_DB,
-			build   => $build},
-		   '0',
-		   'Process::MpiChunk'
-		   );
-		nstore \$tier_ds, ($numTiers."_todo.tier");
-		$numTiers++;
-	}
-	return $numTiers;
 }
 
 sub SubmitAnnotateTasks {
