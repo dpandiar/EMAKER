@@ -164,6 +164,8 @@ my $DS_CTL;
 my $GFF_DB;
 my $build;
 my $iterator;
+my $tiers_per_task = $OPT{size}; 
+my $wkdir = get_wkdir();
 
 try{
     #get arguments off the command line
@@ -199,20 +201,16 @@ try{
     $code = $E->{-value} if (defined($E->{-value}));
     exit($code);
 };
-$local_execn_time += (time - $time_start); 
-$time_start = time; 
-
-my $queue = setup_workqueue();
-
-my $tiers_per_task = $OPT{size}; 
-my $wkdir = get_wkdir();
-my $command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
-./maker_wq_worker";
 
 my $datastore = $DS_CTL->{root}; 
 if(!-e $datastore) {
 	`mkdir $datastore`;
 }
+
+$local_execn_time += (time - $time_start); 
+$time_start = time; 
+
+my $queue = setup_workqueue();
 
 $wq_execn_time += (time - $time_start); 
 
@@ -335,6 +333,8 @@ sub SubmitWQTask {
 		exit(0);
 	}
 	
+	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
+						./maker_wq_worker";
 	my $query_seq = ""; 
 	for(my $i = 0; $i < $tiers_in_task; $i++) {
 		my $val = $tier_to_submit + $i; 
@@ -344,7 +344,7 @@ sub SubmitWQTask {
 		return 0; 
 	}
 	print time." :: Creating WQ task for query sequence(s) $query_seq\n";  
-	my $task = work_queue::work_queue_task_create("$command $query_seq"); 
+	my $task = work_queue::work_queue_task_create("$task_command $query_seq"); 
 	work_queue::work_queue_task_specify_tag($task, "$tier_to_submit"); #parm2 must be a string
 	
 	#specify the base files required for each task
@@ -361,7 +361,7 @@ sub SubmitWQTask {
 		$tier_to_submit++; 
 	}
 	work_queue::work_queue_submit($queue, $task);
-	print time." :: submitted task with command: $command for query seq: $query_seq\n";
+	print time." :: submitted task with command: $task_command for query seq: $query_seq\n";
 
 	return 1;
 }
