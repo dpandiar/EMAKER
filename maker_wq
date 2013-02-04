@@ -213,7 +213,7 @@ my $queue = setup_workqueue();
 my $last_annotated_tier = 0;
 # submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
 my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
-$last_annotated_tier = AnnotateTiers($last_annotated_tier, $init_tiers_submit);
+$last_annotated_tier = SubmitAnnotateTasks($queue, $last_annotated_tier, $init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 my $tiers_submitted = $init_tiers_submit;
 
@@ -230,7 +230,7 @@ while(!work_queue::work_queue_empty($queue)) {
 	
 	while (work_queue::work_queue_hungry($queue) && $tiers_submitted < $total_tiers) { 
 		print time." :: WQ is hungry. So going to submit a task.\n";
-		$last_annotated_tier = AnnotateTiers(($last_annotated_tier+1), $tiers_per_task);
+		$last_annotated_tier = SubmitAnnotateTasks($queue, ($last_annotated_tier+1), $tiers_per_task);
 		$tiers_submitted += $tiers_per_task;	
 	}
 }
@@ -299,8 +299,8 @@ sub GenTiers {
 	return $numTiers;
 }
 
-sub AnnotateTiers {
-	my($start_tier, $tiers_to_submit) = @_;
+sub SubmitAnnotateTasks {
+	my($queue, $start_tier, $tiers_to_submit) = @_;
 	my $end_tier = $start_tier + $tiers_to_submit - 1;
 	my $tiers_in_task = $tiers_per_task;	
 	while($start_tier <= $end_tier) {
@@ -308,14 +308,14 @@ sub AnnotateTiers {
 		if ( $tiers_left < $tiers_per_task) {
 			$tiers_in_task = $tiers_left; 
 		}
-		SubmitWQTask($start_tier, $tiers_in_task);
+		SubmitWQTask($queue, $start_tier, $tiers_in_task);
 		$start_tier += $tiers_in_task;	
 	}
 	return $end_tier; #return last annotated tier.
 }
 
 sub SubmitWQTask {
-	my($tier_to_submit, $tiers_in_task) = @_;
+	my($queue, $tier_to_submit, $tiers_in_task) = @_;
 	if($tiers_in_task < 1) {
 		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
