@@ -219,6 +219,112 @@ if(!-e $datastore) {
 
 $wq_execn_time += (time - $time_start); 
 
+$time_start = time; 
+my $total_tiers = GenTiers();
+print time." :: Total number of tiers generated was $total_tiers \n";
+$local_execn_time += (time - $time_start); 
+$time_start = time; 
+
+my $start_tier_to_annotate = 0;
+# submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
+my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
+my $last_annotated_tier = AnnotateTiers($start_tier_to_annotate, $init_tiers_submit);
+print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
+my $tiers_submitted = $init_tiers_submit;
+
+my %failures; 
+my $completed_tasks= 0;
+while(!work_queue::work_queue_empty($queue)) {
+	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
+	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+
+	my $return_val = process_completed_tier_task($queue, 5); #second arg represents timeout
+	if($return_val) {	
+		$completed_tasks++;
+	}	
+	
+	while (work_queue::work_queue_hungry($queue) && $tiers_submitted < $total_tiers) { 
+		print time." :: WQ is hungry. So going to submit a task.\n";
+		$last_annotated_tier = AnnotateTiers(($last_annotated_tier+1), $tiers_per_task);
+		$tiers_submitted += $tiers_per_task;	
+	}
+}
+
+work_queue::work_queue_delete($queue);
+$wq_execn_time += (time - $time_start); 
+print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
+
+print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
+
+#clean up all children processes
+Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+
+sub setup_workqueue {
+	if(defined($OPT{"debug"})){
+		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
+		print time." :: Work Queue debug flags set.\n";
+	}
+
+	my $port = "9155";
+	if(defined($OPT{"port"})) {
+		$port = $OPT{"port"}; 
+	} 
+	my $queue = work_queue::work_queue_create($port);
+	if(defined($queue)) {
+		print time." :: Work Queue listening on port $port.\n";
+	} else {
+		print STDERR "Failed to create Work Queue on port $port.\n"; 
+		exit(0);
+	}
+	if(defined($OPT{"fast_abort"})) {
+		my $multiplier = $OPT{"fast_abort"}; 
+		my $fa = work_queue::work_queue_activate_fast_abort($queue, $multiplier); 
+		print time." :: Work Queue fast abort set to $multiplier.\n";
+	}
+	if(defined($OPT{"project"})) {
+		work_queue::work_queue_specify_name($queue, $OPT{"project"});
+		work_queue::work_queue_specify_master_mode($queue, 1);
+		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
+	}
+	work_queue::work_queue_specify_log($queue, "maker_wq.stats");
+	return $queue;
+}
+
+sub GenTiers {
+	# $iterator is implicitly global
+	print time." :: Generating serialized tier inputs \n";
+	my $tier_ds;
+	my $numTiers = 0;
+	while (my $fasta = $iterator->nextFasta() ) {
+		$tier_ds = Process::MpiTiers->new({fasta =>$fasta,
+			CTL_OPT => \%CTL_OPT,
+			DS_CTL  => $DS_CTL,
+			GFF_DB  => $GFF_DB,
+			build   => $build},
+		   '0',
+		   'Process::MpiChunk'
+		   );
+		nstore \$tier_ds, ($numTiers."_todo.tier");
+		$numTiers++;
+	}
+	return $numTiers;
+}
+
+sub AnnotateTiers {
+	my($start_tier, $tiers_to_submit) = @_;
+	my $end_tier = $start_tier + $tiers_to_submit - 1;
+	my $tiers_in_task = $tiers_per_task;	
+	while($start_tier <= $end_tier) {
+		my $tiers_left = ($end_tier - $start_tier) + 1; 
+		if ( $tiers_left < $tiers_per_task) {
+			$tiers_in_task = $tiers_left; 
+		}
+		SubmitWQTask($start_tier, $tiers_in_task);
+		$start_tier += $tiers_in_task;	
+	}
+	return $end_tier; #return last annotated tier.
+}
+
 sub SubmitWQTask {
 	my($tier_to_submit, $tiers_in_task) = @_;
 	if($tiers_in_task < 1) {
@@ -257,80 +363,6 @@ sub SubmitWQTask {
 	return 1;
 }
 
-sub AnnotateTiers {
-	my($start_tier, $tiers_to_submit) = @_;
-	my $end_tier = $start_tier + $tiers_to_submit - 1;
-	my $tiers_in_task = $tiers_per_task;	
-	while($start_tier <= $end_tier) {
-		my $tiers_left = ($end_tier - $start_tier) + 1; 
-		if ( $tiers_left < $tiers_per_task) {
-			$tiers_in_task = $tiers_left; 
-		}
-		SubmitWQTask($start_tier, $tiers_in_task);
-		$start_tier += $tiers_in_task;	
-	}
-	return $end_tier; #return last annotated tier.
-}
-
-sub GenTiers {
-	# $iterator is implicitly global
-	print time." :: Generating serialized tier inputs \n";
-	my $tier_ds;
-	my $numTiers = 0;
-	while (my $fasta = $iterator->nextFasta() ) {
-		$tier_ds = Process::MpiTiers->new({fasta =>$fasta,
-			CTL_OPT => \%CTL_OPT,
-			DS_CTL  => $DS_CTL,
-			GFF_DB  => $GFF_DB,
-			build   => $build},
-		   '0',
-		   'Process::MpiChunk'
-		   );
-		nstore \$tier_ds, ($numTiers."_todo.tier");
-		$numTiers++;
-	}
-	return $numTiers;
-}
-
-sub specify_output_tier_files {
-	my ($task, $tier) = @_;
-	
-	my $tierFile = $tier."_todo.tier";
-	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
-	if(!exists($tier_ds->{VARS}->{fasta})){
-		print STDERR "Fasta doesn't exist\n"; 
-		exit(0);
-	}
-	#need to know the remote directory name, this is generated from the sequence header
-	my $fasta = Fasta::ucFasta(\$tier_ds->{VARS}->{fasta}); #build uppercase fasta
-	my $q_def = Fasta::getDef(\$fasta); #Get fasta header
-	my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
-	my $root = $tier_ds->DS_CTL->{root}; 
-	my $newfile = $root."/$seq_id";
-	my $ds_flag  = (exists($tier_ds->CTL_OPT->{datastore})) ? $tier_ds->CTL_OPT->{datastore} : 1;
-	if ($ds_flag) {
-		use Digest::MD5 qw(md5_hex);
-
-		my $dir = ""; 
-		my($digest) = uc md5_hex($seq_id); #the hex string, uppercased
-		for(my $j = 0; $j < 2; $j++) {
-			$dir .= substr($digest, $j*2, 2) ."/";
-		}
-		$dir .= $seq_id . "/";
-		print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
-		work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
-	} else {
-		print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
-		work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
-	}
-}
-
-sub submit_input_tier_files {
-	my ($task, $tier) = @_;
-	my $tierFile = $tier."_todo.tier";
-	work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$tierFile, $tierFile, 0, 0);
-}
-
 sub submit_input_base_files {
 	my ($task, $tier) = @_;
 	
@@ -355,6 +387,12 @@ sub submit_input_base_files {
 	submit_adb_input_files($task, $tier_ds);	
 	submit_input_files($task, $tier_ds);	
 	submit_executable_files($task, $tier_ds);	
+}
+
+sub submit_input_tier_files {
+	my ($task, $tier) = @_;
+	my $tierFile = $tier."_todo.tier";
+	work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$tierFile, $tierFile, 0, 0);
 }
 
 sub submit_edb_input_files {
@@ -549,45 +587,38 @@ sub configure_remote_tier_annotation{
 	nstore \$tier_ds, ($tierFile); #store the modified variables to the tier file that is transmitted to workers	
 }
 
-$time_start = time; 
-my $total_tiers = GenTiers();
-print time." :: Total number of tiers generated was $total_tiers \n";
-$local_execn_time += (time - $time_start); 
-$time_start = time; 
-
-my $start_tier_to_annotate = 0;
-# submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
-my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
-my $last_annotated_tier = AnnotateTiers($start_tier_to_annotate, $init_tiers_submit);
-print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
-my $tiers_submitted = $init_tiers_submit;
-
-my %failures; 
-my $completed_tasks= 0;
-while(!work_queue::work_queue_empty($queue)) {
-	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
-	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
-
-	my $return_val = process_completed_tier_task($queue, 5); #second arg represents timeout
-	if($return_val) {	
-		$completed_tasks++;
-	}	
+sub specify_output_tier_files {
+	my ($task, $tier) = @_;
 	
-	while (work_queue::work_queue_hungry($queue) && $tiers_submitted < $total_tiers) { 
-		print time." :: WQ is hungry. So going to submit a task.\n";
-		$last_annotated_tier = AnnotateTiers(($last_annotated_tier+1), $tiers_per_task);
-		$tiers_submitted += $tiers_per_task;	
+	my $tierFile = $tier."_todo.tier";
+	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
+	if(!exists($tier_ds->{VARS}->{fasta})){
+		print STDERR "Fasta doesn't exist\n"; 
+		exit(0);
+	}
+	#need to know the remote directory name, this is generated from the sequence header
+	my $fasta = Fasta::ucFasta(\$tier_ds->{VARS}->{fasta}); #build uppercase fasta
+	my $q_def = Fasta::getDef(\$fasta); #Get fasta header
+	my $seq_id = Fasta::def2SeqID($q_def); #Get sequence identifier
+	my $root = $tier_ds->DS_CTL->{root}; 
+	my $newfile = $root."/$seq_id";
+	my $ds_flag  = (exists($tier_ds->CTL_OPT->{datastore})) ? $tier_ds->CTL_OPT->{datastore} : 1;
+	if ($ds_flag) {
+		use Digest::MD5 qw(md5_hex);
+
+		my $dir = ""; 
+		my($digest) = uc md5_hex($seq_id); #the hex string, uppercased
+		for(my $j = 0; $j < 2; $j++) {
+			$dir .= substr($digest, $j*2, 2) ."/";
+		}
+		$dir .= $seq_id . "/";
+		print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
+		work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
+	} else {
+		print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
+		work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 	}
 }
-
-work_queue::work_queue_delete($queue);
-$wq_execn_time += (time - $time_start); 
-print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
-
-print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
-
-#clean up all children processes
-Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
 sub process_completed_tier_task {
 	my($queue, $timeout) = @_;
@@ -627,37 +658,6 @@ sub process_completed_tier_task {
 		}
 	} 
 	return 0;
-}
-
-sub setup_workqueue {
-	if(defined($OPT{"debug"})){
-		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
-		print time." :: Work Queue debug flags set.\n";
-	}
-
-	my $port = "9155";
-	if(defined($OPT{"port"})) {
-		$port = $OPT{"port"}; 
-	} 
-	my $queue = work_queue::work_queue_create($port);
-	if(defined($queue)) {
-		print time." :: Work Queue listening on port $port.\n";
-	} else {
-		print STDERR "Failed to create Work Queue on port $port.\n"; 
-		exit(0);
-	}
-	if(defined($OPT{"fast_abort"})) {
-		my $multiplier = $OPT{"fast_abort"}; 
-		my $fa = work_queue::work_queue_activate_fast_abort($queue, $multiplier); 
-		print time." :: Work Queue fast abort set to $multiplier.\n";
-	}
-	if(defined($OPT{"project"})) {
-		work_queue::work_queue_specify_name($queue, $OPT{"project"});
-		work_queue::work_queue_specify_master_mode($queue, 1);
-		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
-	}
-	work_queue::work_queue_specify_log($queue, "maker_wq.stats");
-	return $queue;
 }
 
 exit(0);
