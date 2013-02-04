@@ -158,7 +158,7 @@ if(!defined $OPT{size}){
 	$OPT{size} = 1; 
 }
 
-#variables that are persistent outside of try
+#global variables 
 my %CTL_OPT;
 my $DS_CTL;
 my $GFF_DB;
@@ -205,10 +205,7 @@ $time_start = time;
 my $queue = setup_workqueue();
 
 my $tiers_per_task = $OPT{size}; 
-my $wkDirPrefix = cwd();
-chomp($wkDirPrefix); 
-$wkDirPrefix =~ s/\n//g;
-$wkDirPrefix .= "/";
+my $wkdir = get_wkdir();
 my $command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
 ./maker_wq_worker";
 
@@ -258,6 +255,14 @@ print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq
 
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+
+sub get_wkdir {
+	my $wkdir = cwd();
+	chomp($wkdir); 
+	$wkdir =~ s/\n//g;
+	$wkdir .= "/";
+	return $wkdir;
+}
 
 sub setup_workqueue {
 	if(defined($OPT{"debug"})){
@@ -373,8 +378,8 @@ sub submit_input_base_files {
 	#specify the MAKER library files 
 	my $lib = "$FindBin::Bin";
 	$lib =~ s/bin/lib/; 
-	if(! -e "$wkDirPrefix/lib.tar") {
-		`cd $lib; cd ..; tar -cf $wkDirPrefix/lib.tar lib/`;  
+	if(! -e "$wkdir/lib.tar") {
+		`cd $lib; cd ..; tar -cf $wkdir/lib.tar lib/`;  
 	}
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
@@ -392,7 +397,7 @@ sub submit_input_base_files {
 sub submit_input_tier_files {
 	my ($task, $tier) = @_;
 	my $tierFile = $tier."_todo.tier";
-	work_queue::work_queue_task_specify_file($task, $wkDirPrefix.$tierFile, $tierFile, 0, 0);
+	work_queue::work_queue_task_specify_file($task, $wkdir.$tierFile, $tierFile, 0, 0);
 }
 
 sub submit_edb_input_files {
@@ -557,7 +562,7 @@ sub submit_executable_files {
 		my $folder = $fields[scalar(@fields) - 2]; 
 		if(-e $file){
 			if (! -e "$v.tar"){
-				my $tar = `cd $prefix; cd ..; tar -cf $wkDirPrefix/$v.tar $folder`; 
+				my $tar = `cd $prefix; cd ..; tar -cf $wkdir/$v.tar $folder`; 
 			}
 			work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 			$tier_ds->CTL_OPT->{$v} = "$folder/$newfile"; 
