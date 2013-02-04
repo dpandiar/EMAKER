@@ -258,8 +258,6 @@ Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
 sub get_wkdir {
 	my $wkdir = cwd();
-	chomp($wkdir); 
-	$wkdir =~ s/\n//g;
 	$wkdir .= "/";
 	return $wkdir;
 }
