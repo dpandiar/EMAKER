@@ -10,6 +10,9 @@ use lib "$FindBin::Bin/../perl/lib";
 
 my $local_execn_time = 0; 
 my $wq_execn_time = 0; 
+my $wq_task_overhead = 0;
+my $tier_overhead = 0;
+
 my $time_start = time; 
 
 BEGIN{
@@ -22,119 +25,7 @@ BEGIN{
    
    #what to do on ^C
    $SIG{'INT'} = sub {
-      print STDERR "\n\nMaker aborted by user!\n\n";
-      exit (1);
-   };    
-   
-   #supress warnings from storable module
-   $SIG{'__WARN__'} = sub {
-      warn $_[0] if ( $_[0] !~ /Not a CODE reference/ &&
-		      $_[0] !~ /Can\'t store item / &&
-		      $_[0] !~ /Find\:\:skip_pattern|File\/Find\.pm/
-		    );
-   };
-}
-
-use Cwd;
-use Cwd qw(abs_path); 
-use Getopt::Long qw(:config no_ignore_case);
-use Iterator::Any;
-use Error qw(:try);
-use Error::Simple;
-use Storable qw(nstore retrieve);
-use work_queue;
-#external libraries below.
-use Proc::Signal;
-use GI;
-use Fasta;
-use ds_utility;
-use GFFDB;
-use Process::MpiChunk;
-use Process::MpiTiers;
-
-$| = 1; #turn on autoflush.
-
-my $usage = "
-Usage:
-	 maker_wq [options] <maker_opts> <maker_bopts> <maker_exe>
-     
-Maker Options:
-
-     -genome|g <filename> Specify the genome file.
-
-     -predictor|p <type>  Selects the predictor(s) to use when building
-                          annotations.  Defines a pool of gene models for
-                          annotation selection.
-                          types: snap
-                                 augustus
-                                 fgenesh
-                                 genemark
-                                 est2genome (Uses EST's directly)
-                                 protein2genome (For Prokaryotic annotation only)
-                                 model_gff (Pass through GFF3 annotations)
-                                 pred_gff (Uses passed through GFF3 predictions)
-
-                          Use a ',' to seperate types (nospaces)
-                          i.e. -predictor=snap,augustus,fgenesh
-
-     -RM_off|R           Turns all repeat masking off.
-
-     -datastore/         Forcably turn on/off MAKER's use of a two deep datastore
-      nodatastore        directory structure for output.  By default this option
-                         turns on whenever there are more the 1,000 contigs in
-                         the input genome fasta file.
-
-     -base    <string>   Set the base name MAKER uses to save output files.
-                         MAKER uses the input genome file name by default.
-
-     -retry|r <integer>  Rerun failed contigs up to the specified count.
-
-     -cpus|c  <integer>  Tells how many cpus to use for BLAST analysis.
-
-     -force|f            Forces maker to delete old files before running again.
-                         This will require all blast analyses to be re-run.
-
-     -again|a            Caculate all annotations and output files again even if
-                         no settings have changed. Does not delete old analyses.
-
-     -evaluate|e         Run Evaluator on final annotations (under development).
-
-     -CTL                Generate empty control files in the current directory.
-
-     -help|?             Prints this usage statement.
-
-Work Queue Options
-
-     -port <integer>     Sets the port for work_queue to listen on (default: 9135)
- 
-     -fa   <integer>     Sets the work_queue fast abort option with the given multiplier. 
-
-     -N <project>	 Sets the project name to <project>.
-
-     -k <integer>	 Sets the number of sequences per task for remote computation. 
- 
-     -d <level>  	 Sets the debug flag for Work Queue and the CCTOOLS package. For all debugging output, try 'all'.
-
-";
-
-#------------------------------------ MAIN -------------------------------------
-
-#---Process options on the command line 
-my %OPT;
-try{
-    GetOptions("RM_off|R" => \$OPT{R},
-	       "force|f" => \$OPT{force},
-	       "genome|g=s" => \$OPT{genome},
-	       "cpus|c=i" => \$OPT{cpus},
-	       "predictor=s" =>\$OPT{predictor},
-	       "retry=i" =>\$OPT{retry},
-	       "evaluate" =>\$OPT{evaluate},
-	       "again|a" =>\$OPT{again},
-	       "check" =>\$OPT{check},
-	       "base=s" =>\$OPT{out_name},
-	       "datastore!" =>\$OPT{datastore},
-	       "CTL" => sub {GI::generate_control_files(); exit(0);},
-	       "help|?" => sub {print $usage; exit(0)},
+      print $usage; exit(0)},
 	       "port=i" => \$OPT{port},
 	       "fa=i" => \$OPT{fast_abort},
 	       "N=s" => \$OPT{project},
@@ -200,11 +91,12 @@ my $datastore = $DS_CTL->{root};
 if(!-e $datastore) {
 	`mkdir $datastore`;
 }
+$local_execn_time += (time - $time_start); 
 
+$time_start = time; 
 my $total_tiers = GenTiers();
 print time." :: Total number of tiers generated was $total_tiers \n";
-
-$local_execn_time += (time - $time_start); 
+$tier_overhead += (time - $time_start); 
 
 ###Begin WorkQueue section
 $time_start = time; 
@@ -239,7 +131,7 @@ work_queue::work_queue_delete($wq);
 $wq_execn_time += (time - $time_start); 
 
 print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
-print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
+print time." :: Timing totals: local execn time: $local_execn_time, WQ time: $wq_execn_time\n";
 
 #------------------------------- FUNCTION DEFINITIONS -------------------------------------
 sub get_wkdir {
@@ -314,7 +206,8 @@ sub SubmitAnnotateTasks {
 }
 
 sub SubmitWQTask {
-	my($wq, $tier_to_submit, $tiers_in_task) = @_;
+	my($wq, $tier_to_submit, $tiers_in_task) = @_;	
+	my $time_start = time;
 	if($tiers_in_task < 1) {
 		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
@@ -336,13 +229,17 @@ sub SubmitWQTask {
 	
 	#specify the base files required for each task
 	submit_input_base_files($task, $tier_to_submit);
+	$wq_task_overhead += (time - $time_start);
 
+	$time_start = time;
 	for(my $i = 0; $i < $tiers_in_task; $i++){
 		submit_input_tier_files($task, $tier_to_submit);
 		configure_remote_tier_annotation($tier_to_submit);	
 		specify_output_tier_files($task, $tier_to_submit);
 		$tier_to_submit++; 
 	}
+	$tier_overhead += (time - $time_start);	
+	
 	work_queue::work_queue_submit($wq, $task);
 	print time." :: submitted task with command: $task_command for query seq: $query_seq\n";
 
@@ -637,3 +534,4 @@ sub process_completed_tier_task {
 }
 
 exit(0);
+
