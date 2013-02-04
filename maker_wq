@@ -250,7 +250,6 @@ sub get_wkdir {
 
 sub GenTiers {
 	# $iterator is implicitly global
-	print time." :: Generating serialized tier inputs \n";
 	my $tier_ds;
 	my $numTiers = 0;
 	while (my $fasta = $iterator->nextFasta() ) {
