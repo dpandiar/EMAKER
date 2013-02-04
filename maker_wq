@@ -212,6 +212,7 @@ print time." :: Total number of tiers generated was $total_tiers \n";
 
 $local_execn_time += (time - $time_start); 
 
+###Begin WorkQueue section
 $time_start = time; 
 my $queue = setup_workqueue();
 
@@ -222,7 +223,7 @@ $last_annotated_tier = AnnotateTiers($last_annotated_tier, $init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 my $tiers_submitted = $init_tiers_submit;
 
-my %failures; 
+my %task_failures; 
 my $completed_tasks= 0;
 while(!work_queue::work_queue_empty($queue)) {
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
@@ -621,7 +622,7 @@ sub process_completed_tier_task {
 			return 1;
 		} else { #tier resubmission on failure 
 			if($retStatus == -1) {
-				$failures{$counter} += 1; 
+				$task_failures{$counter} += 1; 
 				###DO WE NEED THIS BELOW?	
 				my $tier_ds = ${retrieve($counter."_todo.tier")};
 				#if it failed, we want to force recomputation
@@ -630,7 +631,7 @@ sub process_completed_tier_task {
 			} else { 
 				print time." :: WQ task# $counter completed, not terminated since it returned $retStatus\n";
 			}
-			if($failures{$counter} < 5){
+			if($task_failures{$counter} < 5){
 				print time." :: Failed, resubmitting WQ task# $counter\n";
 				work_queue::work_queue_submit($queue, $t);
 			} else{
