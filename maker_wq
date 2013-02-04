@@ -202,33 +202,7 @@ try{
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
-if(defined($OPT{"debug"})){
-	work_queue::cctools_debug_flags_set($OPT{"debug"}); 
-	print time." :: Work Queue debug flags set.\n";
-}
-
-my $port = "9155";
-if(defined($OPT{"port"})) {
-	$port = $OPT{"port"}; 
-} 
-my $queue = work_queue::work_queue_create($port);
-if(defined($queue)) {
-	print time." :: Work Queue listening on port $port.\n";
-} else {
-	print STDERR "Failed to create Work Queue on port $port.\n"; 
-	exit(0);
-}
-if(defined($OPT{"fast_abort"})) {
-	my $multiplier = $OPT{"fast_abort"}; 
-	my $fa = work_queue::work_queue_activate_fast_abort($queue, $multiplier); 
-	print time." :: Work Queue fast abort set to $multiplier.\n";
-}
-if(defined($OPT{"project"})) {
-	work_queue::work_queue_specify_name($queue, $OPT{"project"});
-	work_queue::work_queue_specify_master_mode($queue, 1);
-	print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
-}
-work_queue::work_queue_specify_log($queue, "maker_wq.stats");
+my $queue = setup_workqueue();
 
 my $tiers_per_task = $OPT{size}; 
 my $wkDirPrefix = cwd();
@@ -653,6 +627,37 @@ sub process_completed_tier_task {
 		}
 	} 
 	return 0;
+}
+
+sub setup_workqueue {
+	if(defined($OPT{"debug"})){
+		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
+		print time." :: Work Queue debug flags set.\n";
+	}
+
+	my $port = "9155";
+	if(defined($OPT{"port"})) {
+		$port = $OPT{"port"}; 
+	} 
+	my $queue = work_queue::work_queue_create($port);
+	if(defined($queue)) {
+		print time." :: Work Queue listening on port $port.\n";
+	} else {
+		print STDERR "Failed to create Work Queue on port $port.\n"; 
+		exit(0);
+	}
+	if(defined($OPT{"fast_abort"})) {
+		my $multiplier = $OPT{"fast_abort"}; 
+		my $fa = work_queue::work_queue_activate_fast_abort($queue, $multiplier); 
+		print time." :: Work Queue fast abort set to $multiplier.\n";
+	}
+	if(defined($OPT{"project"})) {
+		work_queue::work_queue_specify_name($queue, $OPT{"project"});
+		work_queue::work_queue_specify_master_mode($queue, 1);
+		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
+	}
+	work_queue::work_queue_specify_log($queue, "maker_wq.stats");
+	return $queue;
 }
 
 exit(0);
