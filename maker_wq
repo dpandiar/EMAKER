@@ -208,34 +208,34 @@ $local_execn_time += (time - $time_start);
 
 ###Begin WorkQueue section
 $time_start = time; 
-my $queue = setup_workqueue();
+my $wq = setup_workqueue();
 
 my $last_annotated_tier = 0;
 # submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
 my $init_tiers_submit = ($total_tiers < 100 ? $total_tiers : 100);
-$last_annotated_tier = SubmitAnnotateTasks($queue, $last_annotated_tier, $init_tiers_submit);
+$last_annotated_tier = SubmitAnnotateTasks($wq, $last_annotated_tier, $init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 my $tiers_submitted = $init_tiers_submit;
 
 my %task_failures; 
 my $completed_tasks= 0;
-while(!work_queue::work_queue_empty($queue)) {
+while(!work_queue::work_queue_empty($wq)) {
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
-	my $return_val = process_completed_tier_task($queue, 5); #second arg represents timeout
+	my $return_val = process_completed_tier_task($wq, 5); #second arg represents timeout
 	if($return_val) {	
 		$completed_tasks++;
 	}	
 	
-	while (work_queue::work_queue_hungry($queue) && $tiers_submitted < $total_tiers) { 
+	while (work_queue::work_queue_hungry($wq) && $tiers_submitted < $total_tiers) { 
 		print time." :: WQ is hungry. So going to submit a task.\n";
-		$last_annotated_tier = SubmitAnnotateTasks($queue, ($last_annotated_tier+1), $tiers_per_task);
+		$last_annotated_tier = SubmitAnnotateTasks($wq, ($last_annotated_tier+1), $tiers_per_task);
 		$tiers_submitted += $tiers_per_task;	
 	}
 }
 
-work_queue::work_queue_delete($queue);
+work_queue::work_queue_delete($wq);
 $wq_execn_time += (time - $time_start); 
 
 print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
@@ -258,8 +258,8 @@ sub setup_workqueue {
 	if(defined($OPT{"port"})) {
 		$port = $OPT{"port"}; 
 	} 
-	my $queue = work_queue::work_queue_create($port);
-	if(defined($queue)) {
+	my $wq = work_queue::work_queue_create($port);
+	if(defined($wq)) {
 		print time." :: Work Queue listening on port $port.\n";
 	} else {
 		print STDERR "Failed to create Work Queue on port $port.\n"; 
@@ -267,16 +267,16 @@ sub setup_workqueue {
 	}
 	if(defined($OPT{"fast_abort"})) {
 		my $multiplier = $OPT{"fast_abort"}; 
-		my $fa = work_queue::work_queue_activate_fast_abort($queue, $multiplier); 
+		my $fa = work_queue::work_queue_activate_fast_abort($wq, $multiplier); 
 		print time." :: Work Queue fast abort set to $multiplier.\n";
 	}
 	if(defined($OPT{"project"})) {
-		work_queue::work_queue_specify_name($queue, $OPT{"project"});
-		work_queue::work_queue_specify_master_mode($queue, 1);
+		work_queue::work_queue_specify_name($wq, $OPT{"project"});
+		work_queue::work_queue_specify_master_mode($wq, 1);
 		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
-	work_queue::work_queue_specify_log($queue, "maker_wq.stats");
-	return $queue;
+	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
+	return $wq;
 }
 
 sub GenTiers {
@@ -300,7 +300,7 @@ sub GenTiers {
 }
 
 sub SubmitAnnotateTasks {
-	my($queue, $start_tier, $tiers_to_submit) = @_;
+	my($wq, $start_tier, $tiers_to_submit) = @_;
 	my $end_tier = $start_tier + $tiers_to_submit - 1;
 	my $tiers_in_task = $tiers_per_task;	
 	while($start_tier <= $end_tier) {
@@ -308,14 +308,14 @@ sub SubmitAnnotateTasks {
 		if ( $tiers_left < $tiers_per_task) {
 			$tiers_in_task = $tiers_left; 
 		}
-		SubmitWQTask($queue, $start_tier, $tiers_in_task);
+		SubmitWQTask($wq, $start_tier, $tiers_in_task);
 		$start_tier += $tiers_in_task;	
 	}
 	return $end_tier; #return last annotated tier.
 }
 
 sub SubmitWQTask {
-	my($queue, $tier_to_submit, $tiers_in_task) = @_;
+	my($wq, $tier_to_submit, $tiers_in_task) = @_;
 	if($tiers_in_task < 1) {
 		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
@@ -344,7 +344,7 @@ sub SubmitWQTask {
 		specify_output_tier_files($task, $tier_to_submit);
 		$tier_to_submit++; 
 	}
-	work_queue::work_queue_submit($queue, $task);
+	work_queue::work_queue_submit($wq, $task);
 	print time." :: submitted task with command: $task_command for query seq: $query_seq\n";
 
 	return 1;
@@ -598,9 +598,9 @@ sub specify_output_tier_files {
 }
 
 sub process_completed_tier_task {
-	my($queue, $timeout) = @_;
+	my($wq, $timeout) = @_;
 
-	my $t = work_queue::work_queue_wait($queue, $timeout); 
+	my $t = work_queue::work_queue_wait($wq, $timeout); 
 	if(defined($t)) {
 		my $counter = $t->{tag}; 
 		my $output = $t->{output}; 
@@ -627,7 +627,7 @@ sub process_completed_tier_task {
 			}
 			if($task_failures{$counter} < 5){
 				print time." :: Failed, resubmitting WQ task# $counter\n";
-				work_queue::work_queue_submit($queue, $t);
+				work_queue::work_queue_submit($wq, $t);
 			} else{
 				print time." :: WQ task# $counter has failed too many times\n"; 
 				work_queue::work_queue_task_delete($t);
