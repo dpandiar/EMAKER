@@ -207,18 +207,13 @@ if(!-e $datastore) {
 	`mkdir $datastore`;
 }
 
+my $total_tiers = GenTiers();
+print time." :: Total number of tiers generated was $total_tiers \n";
+
 $local_execn_time += (time - $time_start); 
 $time_start = time; 
 
 my $queue = setup_workqueue();
-
-$wq_execn_time += (time - $time_start); 
-
-$time_start = time; 
-my $total_tiers = GenTiers();
-print time." :: Total number of tiers generated was $total_tiers \n";
-$local_execn_time += (time - $time_start); 
-$time_start = time; 
 
 my $start_tier_to_annotate = 0;
 # submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
