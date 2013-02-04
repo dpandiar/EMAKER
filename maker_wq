@@ -341,7 +341,7 @@ sub SubmitWQTask {
 	
 	#specify the base files required for each task
 	submit_input_base_files($task, $tier_to_submit);
-	$wq_task_ovhead += (time - $time_start);
+	$wq_task_overhead += (time - $time_start);
 
 	$time_start = time;
 	for(my $i = 0; $i < $tiers_in_task; $i++){
