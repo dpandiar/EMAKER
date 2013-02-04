@@ -594,7 +594,7 @@ while(!work_queue::work_queue_empty($queue)) {
 	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
-	my $return_val = process_annotated_tier_task($queue, 5); #second arg represents timeout
+	my $return_val = process_completed_tier_task($queue, 5); #second arg represents timeout
 	if($return_val) {	
 		$completed_tasks++;
 	}	
@@ -615,7 +615,7 @@ print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq
 #clean up all children processes
 Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
-sub process_annotated_tier_task {
+sub process_completed_tier_task {
 	my($queue, $timeout) = @_;
 
 	my $t = work_queue::work_queue_wait($queue, $timeout); 
