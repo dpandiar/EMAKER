@@ -242,12 +242,9 @@ while(!work_queue::work_queue_empty($queue)) {
 
 work_queue::work_queue_delete($queue);
 $wq_execn_time += (time - $time_start); 
+
 print "\n".time." :: all tasks complete :: $completed_tasks in total \n";
-
 print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
-
-#clean up all children processes
-Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
 #------------------------------- FUNCTION DEFINITIONS -------------------------------------
 sub get_wkdir {
