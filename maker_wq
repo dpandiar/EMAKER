@@ -46,6 +46,7 @@ use Error qw(:try);
 use Error::Simple;
 use Storable qw(nstore retrieve);
 use work_queue;
+use POSIX qw(ceil floor);
 #external libraries below.
 use Proc::Signal;
 use GI;
@@ -115,6 +116,8 @@ Work Queue Options
      -N <project>	 Sets the project name to <project>.
 
      -k <integer>	 Sets the number of sequences per task for remote computation. 
+     
+	 -r <integer>	 Specify the number of resources that will be provisioned. 
  
      -d <level>  	 Sets the debug flag for Work Queue and the CCTOOLS package. For all debugging output, try 'all'.
 
@@ -142,6 +145,7 @@ try{
 	       "fa=i" => \$OPT{fast_abort},
 	       "N=s" => \$OPT{project},
 	       "d=s" => \$OPT{debug},
+ 	       "r=i" => \$OPT{resources},
  	       "k=i" => \$OPT{size}
 	       );
 
@@ -161,6 +165,7 @@ my $DS_CTL;
 my $GFF_DB;
 my $build;
 my $iterator;
+my $resources_provisioned = $OPT{resources}; 
 my $tiers_per_task = $OPT{size}; 
 my $wkdir = get_wkdir();
 
@@ -213,6 +218,11 @@ $tier_overhead += (time - $time_start);
 ###Begin WorkQueue section
 $time_start = time; 
 my $wq = setup_workqueue();
+
+if(defined $OPT{resources}){
+	$tiers_per_task = get_tiers_per_task($total_tiers, $resources_provisioned);
+	print time." :: Calculated tiers per task is $tiers_per_task\n";
+}
 
 my $last_annotated_tier = 0;
 # submit at most 100 tasks initially to avoid resource wastage from transfer overheads.
@@ -634,6 +644,47 @@ sub process_completed_tier_task {
 		}
 	} 
 	return 0;
+}
+
+sub get_tiers_per_task {
+	my($tier_total, $resource_total) = @_; #n, r
+	
+	my $optimal_tasks; #k
+	my $per_tier_overhead = 0.0001;	#a
+	my $per_task_overhead = 0.0001;	#b
+	my $serial_execn_time = 6; #c
+	my $per_tier_transfer_overhead = 0.001; #d
+	my $per_res_transfer_overhead = 60; #e
+	my $parallel_execn_time = 90; #t
+	my $min_time = -1;
+	
+	#Model:
+	#T(k, r) = [(a*n) + (b*k) + c] + [(t*n)/k + ceil(k/r)] + [(d*n) + (e*r)]
+	
+	my $total_tier_overhead = ($per_tier_overhead * $tier_total); # (a*n)
+	my $total_tier_transfer_overhead = ($per_tier_transfer_overhead * $tier_total);	 # (d*n)
+	my $total_res_transfer_overhead = ($per_res_transfer_overhead * $resource_total); # (e*r)
+	my $total_parallel_time = ($parallel_execn_time * $tier_total); # (t*n)
+
+	for (my $i = 1; $i <= $tier_total; $i++) {
+		my $task_overhead = $per_task_overhead * $i; # (b*k)	
+		
+		#below represents [(a*n) + (b*k) + c]
+		my $projected_serial_time = $total_tier_overhead + $task_overhead + $serial_execn_time; 	
+		#below represents [(t*n)/k + ceil(k/r)]
+		my $projected_parallel_time = ($total_parallel_time / $i) * ceil($i/$resource_total);
+		#below represents [(d*n) + (e*r)] 
+		my $projected_transfer_time = $total_res_transfer_overhead + $total_tier_transfer_overhead;
+
+		my $projected_runtime = $projected_serial_time + $projected_parallel_time + $projected_transfer_time;
+		if ($min_time < 0 || ($projected_runtime < $min_time)) {
+			$min_time = $projected_runtime;
+			$optimal_tasks = $i;	
+		} 	
+	}
+
+	my $tiers_in_task = floor($tier_total/$optimal_tasks);
+	return $tiers_in_task;
 }
 
 exit(0);
