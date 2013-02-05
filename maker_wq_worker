@@ -1,0 +1,126 @@
+#!/usr/bin/env perl
+use strict "vars";
+use strict "refs";
+use warnings;
+
+use FindBin;
+use vars qw($RANK $LOG $CMD_ARGS);
+
+
+BEGIN{
+   if (not ($ENV{CGL_SO_SOURCE})) {
+      $ENV{CGL_SO_SOURCE} = "$FindBin::Bin/../lib/CGL/so.obo";
+   }
+   if (not ($ENV{CGL_GO_SOURCE})) {
+      $ENV{CGL_GO_SOURCE} = "$FindBin::Bin/../lib/CGL/gene_ontology.obo"
+   }
+   
+   $CMD_ARGS = join(' ', @ARGV);
+   
+   #what to do on ^C
+   $SIG{'INT'} = sub {
+      print STDERR "\n\nMaker aborted by user!!\n\n" unless($main::qq);
+      exit (1);
+   };    
+   
+   #supress warnings from storable module
+   $SIG{'__WARN__'} = sub {
+      warn $_[0] if ( $_[0] !~ /Not a CODE reference/ &&
+		      $_[0] !~ /Can\'t store item / &&
+		      $_[0] !~ /Find\:\:skip_pattern|File\/Find\.pm/
+		    );
+   };
+
+   #output to log file of seq that caused rank to die
+   $SIG{'__DIE__'} =
+   sub {
+      if (defined ($LOG) && defined $_[0]) {
+	 my $die_count = $LOG->get_die_count();
+	 $die_count++;
+	 
+	 $LOG->add_entry("DIED","RANK",$RANK);
+	 $LOG->add_entry("DIED","COUNT",$die_count);
+      }
+
+      die $_[0]."\n".
+	  "FATAL ERROR\n";
+   };
+}
+
+
+
+
+### begin ztm code
+
+my $link_output = `find -name "*" -exec ln -s {} . \\\;`;
+
+my $numArgs = $#ARGV + 1;
+
+if ($numArgs < 1) {
+        print "Usage: maker_wq_worker counter\n";
+        exit;
+}
+#my @tars = <*.tar>; 
+#foreach my $tar (@tars){
+#	print STDERR "untarring $tar\n";
+#	`tar -xf $tar`; 
+#}
+use lib "./lib"; 
+#sleep(30); 
+my $counter = $ARGV[0];
+
+
+my $tier;
+#my $inFile = $counter."_todo.tier";
+
+use Storable qw(retrieve);
+use ds_utility;
+use Fasta;
+use FastaChunker;
+use maker::auto_annotator;
+use cluster;
+use repeat_mask_seq;
+use runlog;
+use GFFDB;
+use Error qw(:try);
+use Error::Simple;
+use Process::MpiChunk;
+use Process::MpiTiers;
+use Proc::Signal;
+use Cwd;
+use FileHandle;
+use File::Path;
+use Getopt::Long qw(:config no_ignore_case);
+use GI;
+use Dumper::GFF::GFFV3;
+use Iterator::Any;
+use Iterator::Fasta;
+use Iterator::GFF3;
+
+#my @ts = split(/\s/, $counter); 
+my @ts = @ARGV; 
+foreach my $c (@ts){
+my $inFile = $c."_todo.tier";
+my $total = scalar(@ts); 
+print "On component $c of $#ts, $total, $counter\n"; 
+#tier files were generated with the nstore command from the Storable Perl module
+#This simply stores a hash to disk in a convenient format. 
+$tier = ${retrieve($inFile)};
+$tier->CTL_OPT->{out_name} = "."; 
+$tier->CTL_OPT->{out_base} = "."; 
+$tier->CTL_OPT->{the_void} = ".";
+$tier->{the_void} = ".";  
+#Why?
+#Dumper prints a Perl data structure in Perl syntax
+#print Dumper($tier);
+use Process::MpiTiers;
+
+	print time." :: Worker $counter :: starting \n";
+	$tier->run_all;
+	print time." :: Worker $counter :: finished \n";
+
+	if($tier->failed) { print "EXIT:-1 \n"; last; }#exit -1; }
+	elsif($tier->terminated) { print "EXIT:1 \n"; next;}#exit 0; }
+	else { print "EXIT:0 \n"; last; }#exit 0; }
+
+}
