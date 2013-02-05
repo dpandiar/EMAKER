@@ -1,2 +1,3 @@
-1. Cut down dependencies.
-2. Create and store tier files in its own directory.
+1. Add model for task decomposition. 
+2. Cut down dependencies.
+3. Create and store tier files in its own directory.
