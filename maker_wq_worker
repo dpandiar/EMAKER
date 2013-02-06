@@ -121,6 +121,4 @@ use Process::MpiTiers;
 
 	if($tier->failed) { print "EXIT:-1 \n"; last; }#exit -1; }
 	elsif($tier->terminated) { print "EXIT:1 \n"; next;}#exit 0; }
-	else { print "EXIT:0 \n"; last; }#exit 0; }
-
 }
