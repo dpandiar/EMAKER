@@ -227,10 +227,11 @@ while(!work_queue::work_queue_empty($wq)) {
 	if($return_val) {	
 		$completed_tasks++;
 	}	
-	
-	while (work_queue::work_queue_hungry($wq) && $tiers_submitted < $total_tiers) { 
-		print time." :: WQ is hungry. So going to submit a task.\n";
-		$last_annotated_tier = SubmitAnnotateTasks($wq, ($last_annotated_tier+1), $tiers_per_task);
+
+	my $new_tasks_to_submit = work_queue::work_queue_hungry($wq);
+	while ($new_tasks_to_submit > 0 && $tiers_submitted < $total_tiers) { 
+		print time." :: WQ is hungry for $new_tasks_to_submit tasks.\n";
+		$last_annotated_tier = SubmitAnnotateTasks($wq, ($last_annotated_tier+1), ($new_tasks_to_submit * $tiers_per_task));
 		$tiers_submitted += $tiers_per_task;	
 	}
 }
