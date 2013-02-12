@@ -235,15 +235,15 @@ my %task_failures;
 my $annotated_tiers = 0;
 while ($annotated_tiers < $tiers_submitted) {
 	$annotated_tiers += process_completed_tier_task($wq, 5);
-	my $new_tasks_to_submit = work_queue::work_queue_hungry($wq);
-	while ($new_tasks_to_submit > 0 && $tiers_submitted < $total_tiers) {
-		print time." :: WQ is hungry for $new_tasks_to_submit tasks.\n";
-		$last_annotated_tier = submit_tiers_to_annotate($wq, ($last_annotated_tier+1), ($new_tasks_to_submit * $tiers_per_task));
-		$tiers_submitted += $tiers_per_task;
+	my $tiers_to_submit = get_tiers_to_submit($tiers_per_task);
+	while ($tiers_to_submit > 0 && $tiers_submitted < $total_tiers) {
+		print time." :: There is capacity to annotate $tiers_to_submit tiers.\n";
+		$last_annotated_tier = submit_tiers_to_annotate($wq, ($last_annotated_tier+1), $tiers_to_submit);
+		$tiers_submitted += $tiers_to_submit;
 	}
 }
 
-work_queue::work_queue_delete($wq);
+delete_workqueue($wq);
 $wq_execn_time += (time - $time_start); 
 
 print "\n".time." :: Tiers annotated :: $annotated_tiers in total \n";
@@ -304,6 +304,14 @@ sub setup_workqueue {
 	}
 	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
 	return $wq;
+}
+
+sub get_tiers_to_submit {
+	my ($tiers_in_task) = @_;
+	my $tasks_to_submit = work_queue::work_queue_hungry($wq);
+	my $tiers_to_submit = $tasks_to_submit * $tiers_in_task;
+
+	return $tiers_to_submit;
 }
 
 sub get_initial_tiers_to_submit {
@@ -372,7 +380,6 @@ sub SubmitWQTask {
 
 sub submit_input_base_files {
 	my ($task, $tier) = @_;
-	print time." :: Specifying input files required for WQ task# $tier\n";  
 	
 	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 	
@@ -609,12 +616,15 @@ sub specify_output_tier_files {
 			$dir .= substr($digest, $j*2, 2) ."/";
 		}
 		$dir .= $seq_id . "/";
-		print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
 		work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
 	} else {
-		print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
 		work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 	}
+}
+
+sub delete_workqueue {
+	my($wq) = @_;
+	work_queue::work_queue_delete($wq);
 }
 
 sub process_completed_tier_task {
@@ -632,17 +642,17 @@ sub process_completed_tier_task {
 			$retStatus = sprintf("%d", $retStatus);
 		}
 		if($retStatus == 0 || $retStatus == 1) {
-			print time." :: Finished WQ task# $counter.\n";
+			print time." :: Finished WQ task with starting tier $counter.\n";
 			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 			work_queue::work_queue_task_delete($t);
 			return 1;
 		} else { #tier resubmission on failure 
 			$task_failures{$counter} += 1; 
 			if($task_failures{$counter} < 5){
-				print time." :: Failed, resubmitting WQ task# $counter\n";
+				print time." :: Failed, resubmitting WQ task with starting tier $counter\n";
 				work_queue::work_queue_submit($wq, $t);
 			} else{
-				print time." :: WQ task# $counter has failed too many times\n"; 
+				print time." :: WQ task with starting tier $counter has failed too many times\n"; 
 				work_queue::work_queue_task_delete($t);
 			}
 		}
