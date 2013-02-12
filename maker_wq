@@ -362,7 +362,6 @@ sub SubmitWQTask {
 
 sub submit_input_base_files {
 	my ($task, $tier) = @_;
-	print time." :: Specifying input files required for WQ task# $tier\n";  
 	
 	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
 	
@@ -599,10 +598,8 @@ sub specify_output_tier_files {
 			$dir .= substr($digest, $j*2, 2) ."/";
 		}
 		$dir .= $seq_id . "/";
-		print time." :: Specifying output directory $datastore/$dir for WQ task# ", $task->{tag}, "computed using md5 on $seq_id\n";  
 		work_queue::work_queue_task_specify_file($task, "$datastore/$dir", $dir, 1, 0); 
 	} else {
-		print time." :: Specifying output directory $datastore/$seq_id for WQ task# ", $task->{tag}, "\n";  
 		work_queue::work_queue_task_specify_file($task, "$datastore/$seq_id", $seq_id, 1, 0); 
 	}
 }
@@ -627,17 +624,17 @@ sub process_completed_tier_task {
 			$retStatus = sprintf("%d", $retStatus);
 		}
 		if($retStatus == 0 || $retStatus == 1) {
-			print time." :: Finished WQ task# $counter.\n";
+			print time." :: Finished WQ task with starting tier $counter.\n";
 			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
 			work_queue::work_queue_task_delete($t);
 			return 1;
 		} else { #tier resubmission on failure 
 			$task_failures{$counter} += 1; 
 			if($task_failures{$counter} < 5){
-				print time." :: Failed, resubmitting WQ task# $counter\n";
+				print time." :: Failed, resubmitting WQ task with starting tier $counter\n";
 				work_queue::work_queue_submit($wq, $t);
 			} else{
-				print time." :: WQ task# $counter has failed too many times\n"; 
+				print time." :: WQ task with starting tier $counter has failed too many times\n"; 
 				work_queue::work_queue_task_delete($t);
 			}
 		}
