@@ -303,10 +303,10 @@ sub get_tiers_to_submit {
 
 sub get_initial_tiers_to_submit {
 	my($total_tiers, $tiers_in_task) = @_;	
-	my $total_tier_tasks = floor($total_tiers / $tiers_in_task);
+	my $total_tier_tasks = ceil($total_tiers / $tiers_in_task);
 	my $initial_tasks = ($total_tier_tasks < 100 ? $total_tier_tasks : 100);
 
-	return $initial_tasks;
+	return ($initial_tasks * $tiers_in_task);
 }
 
 sub submit_tiers_to_annotate {
