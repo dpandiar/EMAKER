@@ -351,10 +351,9 @@ sub SubmitWQTask {
 	my $task = work_queue::work_queue_task_create("$task_command $query_seq"); 
 	work_queue::work_queue_task_specify_tag($task, "$tier_to_submit"); #parm2 must be a string
 	
-	#specify the base files required for each task
-	submit_input_base_files($task, $tier_to_submit);
 
 	for(my $i = 0; $i < $tiers_in_task; $i++){
+		submit_input_base_files($task, $tier_to_submit);
 		submit_input_tier_files($task, $tier_to_submit);
 		configure_remote_tier_annotation($tier_to_submit);	
 		specify_output_tier_files($task, $tier_to_submit);
