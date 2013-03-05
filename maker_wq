@@ -238,7 +238,7 @@ while ($annotated_tiers < $tiers_submitted) {
 	my $tiers_to_submit = get_tiers_to_submit($tiers_per_task);
 	while ($tiers_to_submit > 0 && $tiers_submitted < $total_tiers) {
 		print time." :: There is capacity to annotate $tiers_to_submit tiers.\n";
-		$last_annotated_tier = submit_tiers_to_annotate($wq, ($last_annotated_tier+1), $tiers_to_submit);
+		$last_annotated_tier = submit_tiers_to_annotate($wq, ($last_annotated_tier+1), ($total_tiers - $tiers_submitted));
 		$tiers_submitted += $tiers_to_submit;
 	}
 }
