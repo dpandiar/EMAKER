@@ -10,6 +10,9 @@ use lib "$FindBin::Bin/../perl/lib";
 
 my $local_execn_time = 0; 
 my $wq_execn_time = 0; 
+my $wq_task_overhead = 0;
+my $tier_overhead = 0;
+
 my $time_start = time; 
 
 BEGIN{
@@ -113,6 +116,8 @@ Work Queue Options
      -N <project>	 Sets the project name to <project>.
 
      -k <integer>	 Sets the number of sequences per task for remote computation. 
+     
+	 -r <integer>	 Specify the number of resources that will be provisioned. 
  
      -d <level>  	 Sets the debug flag for Work Queue and the CCTOOLS package. For all debugging output, try 'all'.
 
@@ -140,6 +145,7 @@ try{
 	       "fa=i" => \$OPT{fast_abort},
 	       "N=s" => \$OPT{project},
 	       "d=s" => \$OPT{debug},
+ 	       "r=i" => \$OPT{resources},
  	       "k=i" => \$OPT{size}
 	       );
 
@@ -159,6 +165,7 @@ my $DS_CTL;
 my $GFF_DB;
 my $build;
 my $iterator;
+my $resources_provisioned = $OPT{resources}; 
 my $tiers_per_task = $OPT{size}; 
 my $wkdir = get_wkdir();
 
@@ -201,15 +208,21 @@ my $datastore = $DS_CTL->{root};
 if(!-e $datastore) {
 	`mkdir $datastore`;
 }
+$local_execn_time += (time - $time_start);
 
+$time_start = time;
 my $total_tiers = GenTiers();
 print time." :: Total number of tiers generated was $total_tiers \n";
-
-$local_execn_time += (time - $time_start); 
+$tier_overhead += (time - $time_start); 
 
 ###Begin WorkQueue section
 $time_start = time; 
 my $wq = setup_workqueue();
+
+if(defined $OPT{resources}){
+	$tiers_per_task = get_tiers_per_task($total_tiers, $resources_provisioned);
+	print time." :: Calculated tiers per task is $tiers_per_task\n";
+}
 
 my $last_annotated_tier = 0;
 my $init_tiers_submit = get_initial_tiers_to_submit($total_tiers, $tiers_per_task); 
@@ -332,6 +345,7 @@ sub submit_tiers_to_annotate {
 
 sub SubmitWQTask {
 	my($wq, $tier_to_submit, $tiers_in_task) = @_;
+	my $time_start = time;	
 	if($tiers_in_task < 1) {
 		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
@@ -353,13 +367,17 @@ sub SubmitWQTask {
 	
 	#specify the base files required for each task
 	submit_input_base_files($task, $tier_to_submit);
+	$wq_task_overhead += (time - $time_start);
 
+	$time_start = time;
 	for(my $i = 0; $i < $tiers_in_task; $i++){
 		submit_input_tier_files($task, $tier_to_submit);
 		configure_remote_tier_annotation($tier_to_submit);	
 		specify_output_tier_files($task, $tier_to_submit);
 		$tier_to_submit++; 
 	}
+	$tier_overhead += (time - $time_start);	
+	
 	work_queue::work_queue_submit($wq, $task);
 	print time." :: submitted task with command: $task_command for query seq: $query_seq\n";
 
@@ -646,6 +664,47 @@ sub process_completed_tier_task {
 		}
 	} 
 	return 0;
+}
+
+sub get_tiers_per_task {
+	my($tier_total, $resource_total) = @_; #n, r
+	
+	my $optimal_tasks; #k
+	my $per_tier_overhead = 0.0001;	#a
+	my $per_task_overhead = 0.0001;	#b
+	my $serial_execn_time = 6; #c
+	my $per_tier_transfer_overhead = 0.001; #d
+	my $per_res_transfer_overhead = 60; #e
+	my $parallel_execn_time = 90; #t
+	my $min_time = -1;
+	
+	#Model:
+	#T(k, r) = [(a*n) + (b*k) + c] + [(t*n)/k + ceil(k/r)] + [(d*n) + (e*r)]
+	
+	my $total_tier_overhead = ($per_tier_overhead * $tier_total); # (a*n)
+	my $total_tier_transfer_overhead = ($per_tier_transfer_overhead * $tier_total);	 # (d*n)
+	my $total_res_transfer_overhead = ($per_res_transfer_overhead * $resource_total); # (e*r)
+	my $total_parallel_time = ($parallel_execn_time * $tier_total); # (t*n)
+
+	for (my $i = 1; $i <= $tier_total; $i++) {
+		my $task_overhead = $per_task_overhead * $i; # (b*k)	
+		
+		#below represents [(a*n) + (b*k) + c]
+		my $projected_serial_time = $total_tier_overhead + $task_overhead + $serial_execn_time; 	
+		#below represents [(t*n)/k + ceil(k/r)]
+		my $projected_parallel_time = ($total_parallel_time / $i) * ceil($i/$resource_total);
+		#below represents [(d*n) + (e*r)] 
+		my $projected_transfer_time = $total_res_transfer_overhead + $total_tier_transfer_overhead;
+
+		my $projected_runtime = $projected_serial_time + $projected_parallel_time + $projected_transfer_time;
+		if ($min_time < 0 || ($projected_runtime < $min_time)) {
+			$min_time = $projected_runtime;
+			$optimal_tasks = $i;	
+		} 	
+	}
+
+	my $tiers_in_task = floor($tier_total/$optimal_tasks);
+	return $tiers_in_task;
 }
 
 exit(0);

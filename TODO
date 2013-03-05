@@ -1,3 +1,4 @@
-1. Cut down dependencies.
-2. Create and store tier files in its own directory.
-3. Modularize the logic handling work_queue_wait().
+1. Refine model for task decomposition. 
+2. Cut down dependencies.
+3. Create and store tier files in its own directory.
+4. Do timing in microseconds.
