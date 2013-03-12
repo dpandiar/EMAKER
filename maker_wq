@@ -295,7 +295,7 @@ sub setup_workqueue {
 		work_queue::work_queue_specify_master_mode($wq, 1);
 		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
-	#work_queue::work_queue_specify_log($wq, "maker_wq.stats");
+	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
 	return $wq;
 }
 
@@ -344,8 +344,8 @@ sub SubmitWQTask {
 		exit(0);
 	}
 	
-	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
-						./maker_wq_worker";
+	my $task_command .= "export PATH=/afs/nd.edu/user37/ccl/software/external/perl-5.8.9/bin:\$PATH; find -name \"*.tar\" -exec tar -x -f {} \\\;
+	                     ./maker_wq_worker";
 	my $query_seq = ""; 
 	for(my $i = 0; $i < $tiers_in_task; $i++) {
 		my $val = $tier_to_submit + $i; 
@@ -367,7 +367,7 @@ sub SubmitWQTask {
 		$tier_to_submit++; 
 	}
 	work_queue::work_queue_submit($wq, $task);
-	print time." :: submitted task with command: $task_command for query seq: $query_seq\n";
+	print time." :: Submitted task with command: $task_command for query seq: $query_seq\n";
 
 	return 1;
 }
@@ -388,7 +388,6 @@ sub submit_input_base_files {
 	my $tierFile = $tier."_todo.tier";
 	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
 	submit_edb_input_files($task, \$tier_ds);
-	print @{$tier_ds->CTL_OPT->{e_db}}."\n"; 
 	submit_pdb_input_files($task, \$tier_ds);	
 	submit_ddb_input_files($task, \$tier_ds);	
 	submit_rdb_input_files($task, \$tier_ds);	
@@ -406,9 +405,9 @@ sub submit_input_tier_files {
 
 sub submit_edb_input_files {
 	my($task, $tier_ds) = @_;
-	$tier_ds = $$tier_ds;
-	if (defined $tier_ds->CTL_OPT->{e_db}){
-		my @ests = @{$tier_ds->CTL_OPT->{e_db}};
+	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference
+	if (defined $tier_ds->CTL_OPT->{_e_db}){
+		my @ests = @{$tier_ds->CTL_OPT->{_e_db}};
 		for(my $j = 0; $j < scalar(@ests); $j++){
 			my $file = $ests[$j]; 
 			my @fields = split(/\//, $file);
@@ -422,15 +421,15 @@ sub submit_edb_input_files {
 				$ests[$j] = $newfile;  
 			}
 		}
-		$tier_ds->CTL_OPT->{e_db} = \@ests;
+		$tier_ds->CTL_OPT->{_e_db} = \@ests;
 	}
 }
 
 sub submit_pdb_input_files {
 	my($task, $tier_ds) = @_;
-	$tier_ds = $$tier_ds; 
-	if (defined $tier_ds->CTL_OPT->{p_db}){ 
-		my @proteins = @{$tier_ds->CTL_OPT->{p_db}}; 	
+	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference
+	if (defined $tier_ds->CTL_OPT->{_p_db}){ 
+		my @proteins = @{$tier_ds->CTL_OPT->{_p_db}}; 	
 		for(my $j = 0; $j < scalar(@proteins); $j++){
 			my $file = $proteins[$j];
 			my @fields = split(/\//, $file);
@@ -444,15 +443,15 @@ sub submit_pdb_input_files {
 				$proteins[$j] = $newfile; 
 			}
 		}
-		$tier_ds->CTL_OPT->{p_db} = \@proteins; 
+		$tier_ds->CTL_OPT->{_p_db} = \@proteins; 
 	}	
 }
 
 sub submit_ddb_input_files {
 	my($task, $tier_ds) = @_;
-	$tier_ds = $$tier_ds; 
-	if (defined $tier_ds->CTL_OPT->{d_db}){
-		my @d = @{$tier_ds->CTL_OPT->{d_db}}; 	
+	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference
+	if (defined $tier_ds->CTL_OPT->{_d_db}){
+		my @d = @{$tier_ds->CTL_OPT->{_d_db}}; 	
 		for(my $j = 0; $j < scalar(@d); $j++){
 			my $file = $d[$j]; 
 			my @fields = split(/\//, $file);
@@ -466,15 +465,15 @@ sub submit_ddb_input_files {
 				$d[$j] = $newfile; 
 			}
 		}
-		$tier_ds->CTL_OPT->{d_db} = \@d; 
+		$tier_ds->CTL_OPT->{_d_db} = \@d; 
 	}		
 }
 
 sub submit_rdb_input_files {
 	my($task, $tier_ds) = @_;
-	$tier_ds = $$tier_ds; 
-	if (defined $tier_ds->CTL_OPT->{r_db}){
-		my @r = @{$tier_ds->CTL_OPT->{r_db}}; 	
+	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference
+	if (defined $tier_ds->CTL_OPT->{_r_db}){
+		my @r = @{$tier_ds->CTL_OPT->{_r_db}}; 	
 		for(my $j = 0; $j < scalar(@r); $j++){
 			my $file = $r[$j]; 
 			my @fields = split(/\//, $file);
@@ -488,13 +487,13 @@ sub submit_rdb_input_files {
 				$r[$j] = $newfile; 
 			}
 		}
-		$tier_ds->CTL_OPT->{r_db} = \@r; 
+		$tier_ds->CTL_OPT->{_r_db} = \@r; 
 	}
 }
 
 sub submit_adb_input_files {
 	my($task, $tier_ds) = @_;
-	$tier_ds = $$tier_ds; 
+	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference 
 	if (defined $tier_ds->CTL_OPT->{a_db}){
 		my @a = @{$tier_ds->CTL_OPT->{a_db}}; 	
 		for(my $j = 0; $j < scalar(@a); $j++){
@@ -517,7 +516,7 @@ sub submit_adb_input_files {
 
 sub submit_input_files {
 	my($task, $tier_ds) = @_;
-	$tier_ds = $$tier_ds; 
+	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference 
 	my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
 	foreach my $input (@inputs){
 		if (! defined $tier_ds->CTL_OPT->{$input}){next;}
@@ -534,7 +533,7 @@ sub submit_input_files {
 
 sub submit_executable_files {	
 	my($task, $tier_ds) = @_;
-	$tier_ds = $$tier_ds; 
+	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference 
 	my @files = ('snaphmm',  'SEEN_file', 'rmlib');
 	foreach my $x (@files){ 
 		my $file = $tier_ds->CTL_OPT->{$x}; 
