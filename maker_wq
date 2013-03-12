@@ -494,8 +494,8 @@ sub submit_rdb_input_files {
 sub submit_adb_input_files {
 	my($task, $tier_ds) = @_;
 	$tier_ds = $$tier_ds; #dereference $tier_ds since it is passed by reference 
-	if (defined $tier_ds->CTL_OPT->{a_db}){
-		my @a = @{$tier_ds->CTL_OPT->{a_db}}; 	
+	if (defined $tier_ds->CTL_OPT->{_a_db}){
+		my @a = @{$tier_ds->CTL_OPT->{_a_db}}; 	
 		for(my $j = 0; $j < scalar(@a); $j++){
 			my $file = $a[$j];
 			my @fields = split(/\//, $file);
@@ -510,7 +510,7 @@ sub submit_adb_input_files {
 				$a[$j] = $newfile; 
 			}
 		}
-		$tier_ds->CTL_OPT->{a_db} = \@a; 
+		$tier_ds->CTL_OPT->{_a_db} = \@a; 
 	}
 }
 
