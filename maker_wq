@@ -295,7 +295,7 @@ sub setup_workqueue {
 		work_queue::work_queue_specify_master_mode($wq, 1);
 		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
-	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
+	#work_queue::work_queue_specify_log($wq, "maker_wq.stats");
 	return $wq;
 }
 
@@ -387,13 +387,15 @@ sub submit_input_base_files {
 
 	my $tierFile = $tier."_todo.tier";
 	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
-	submit_edb_input_files($task, $tier_ds);
-	submit_pdb_input_files($task, $tier_ds);	
-	submit_ddb_input_files($task, $tier_ds);	
-	submit_rdb_input_files($task, $tier_ds);	
-	submit_adb_input_files($task, $tier_ds);	
-	submit_input_files($task, $tier_ds);	
-	submit_executable_files($task, $tier_ds);	
+	submit_edb_input_files($task, \$tier_ds);
+	print @{$tier_ds->CTL_OPT->{e_db}}."\n"; 
+	submit_pdb_input_files($task, \$tier_ds);	
+	submit_ddb_input_files($task, \$tier_ds);	
+	submit_rdb_input_files($task, \$tier_ds);	
+	submit_adb_input_files($task, \$tier_ds);	
+	submit_input_files($task, \$tier_ds);	
+	submit_executable_files($task, \$tier_ds);	
+	nstore \$tier_ds, ($tierFile);
 }
 
 sub submit_input_tier_files {
@@ -404,6 +406,7 @@ sub submit_input_tier_files {
 
 sub submit_edb_input_files {
 	my($task, $tier_ds) = @_;
+	$tier_ds = $$tier_ds;
 	if (defined $tier_ds->CTL_OPT->{e_db}){
 		my @ests = @{$tier_ds->CTL_OPT->{e_db}};
 		for(my $j = 0; $j < scalar(@ests); $j++){
@@ -425,6 +428,7 @@ sub submit_edb_input_files {
 
 sub submit_pdb_input_files {
 	my($task, $tier_ds) = @_;
+	$tier_ds = $$tier_ds; 
 	if (defined $tier_ds->CTL_OPT->{p_db}){ 
 		my @proteins = @{$tier_ds->CTL_OPT->{p_db}}; 	
 		for(my $j = 0; $j < scalar(@proteins); $j++){
@@ -446,6 +450,7 @@ sub submit_pdb_input_files {
 
 sub submit_ddb_input_files {
 	my($task, $tier_ds) = @_;
+	$tier_ds = $$tier_ds; 
 	if (defined $tier_ds->CTL_OPT->{d_db}){
 		my @d = @{$tier_ds->CTL_OPT->{d_db}}; 	
 		for(my $j = 0; $j < scalar(@d); $j++){
@@ -455,7 +460,7 @@ sub submit_ddb_input_files {
 				$file = abs_path($file); 
 			}
 			@fields = split(/\//, $file); 
-			my $newfile = $fields[scalar(@fields) - 1]; 
+			my $newfile = $fields[scalar(@fields) - 1];
 			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 			if ($#fields > 1){
 				$d[$j] = $newfile; 
@@ -467,6 +472,7 @@ sub submit_ddb_input_files {
 
 sub submit_rdb_input_files {
 	my($task, $tier_ds) = @_;
+	$tier_ds = $$tier_ds; 
 	if (defined $tier_ds->CTL_OPT->{r_db}){
 		my @r = @{$tier_ds->CTL_OPT->{r_db}}; 	
 		for(my $j = 0; $j < scalar(@r); $j++){
@@ -488,6 +494,7 @@ sub submit_rdb_input_files {
 
 sub submit_adb_input_files {
 	my($task, $tier_ds) = @_;
+	$tier_ds = $$tier_ds; 
 	if (defined $tier_ds->CTL_OPT->{a_db}){
 		my @a = @{$tier_ds->CTL_OPT->{a_db}}; 	
 		for(my $j = 0; $j < scalar(@a); $j++){
@@ -510,6 +517,7 @@ sub submit_adb_input_files {
 
 sub submit_input_files {
 	my($task, $tier_ds) = @_;
+	$tier_ds = $$tier_ds; 
 	my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest" ); 
 	foreach my $input (@inputs){
 		if (! defined $tier_ds->CTL_OPT->{$input}){next;}
@@ -518,7 +526,7 @@ sub submit_input_files {
 		my $newfile = $fields[scalar(@fields) - 1]; 
 		if(-e $file){
 			$file = abs_path($file); 
-			work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1); 
+			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1); 
 		}
 		$tier_ds->CTL_OPT->{$input} = $newfile; 
 	}
@@ -526,6 +534,7 @@ sub submit_input_files {
 
 sub submit_executable_files {	
 	my($task, $tier_ds) = @_;
+	$tier_ds = $$tier_ds; 
 	my @files = ('snaphmm',  'SEEN_file', 'rmlib');
 	foreach my $x (@files){ 
 		my $file = $tier_ds->CTL_OPT->{$x}; 
@@ -533,7 +542,7 @@ sub submit_executable_files {
 		my $newfile = $fields[scalar(@fields) - 1]; 
 		if(-e $file){
 			$file = abs_path($file); 
-			work_queue::work_queue_task_specify_file($task, $file, $newfile, 0, 1);
+			work_queue::work_queue_task_specify_file($task, $file, "$newfile", 0, 1);
 			$tier_ds->CTL_OPT->{$x} = "./$newfile"; 
 		}
 
