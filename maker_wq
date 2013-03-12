@@ -226,7 +226,7 @@ if(defined $OPT{resources}){
 
 my $last_annotated_tier = 0;
 my $init_tiers_submit = get_initial_tiers_to_submit($total_tiers, $tiers_per_task); 
-$last_annotated_tier = submit_tiers_to_annotate($wq, $last_annotated_tier, $init_tiers_submit);
+$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, $last_annotated_tier, $init_tiers_submit);
 print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
 my $tiers_submitted = $init_tiers_submit;
 
@@ -240,10 +240,10 @@ while ($annotated_tiers < $tiers_submitted) {
 		print time." :: There is capacity to annotate $tiers_to_submit tiers.\n";
 		my $remaining_tiers = $total_tiers - $tiers_submitted;	
 		if ($tiers_to_submit > $remaining_tiers) {	
-			$last_annotated_tier = submit_tiers_to_annotate($wq, ($last_annotated_tier+1), $remaining_tiers);
+			$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $remaining_tiers);
 			$tiers_submitted += $remaining_tiers; 
 		} else {
-			$last_annotated_tier = submit_tiers_to_annotate($wq, ($last_annotated_tier+1), $tiers_to_submit);
+			$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $tiers_to_submit);
 			$tiers_submitted += $tiers_to_submit; 
 		}
 	}
@@ -329,7 +329,14 @@ sub get_initial_tiers_to_submit {
 }
 
 sub submit_tiers_to_annotate {
-	my($wq, $start_tier, $tiers_to_submit) = @_;
+	my($wq, $total_tiers, $start_tier, $tiers_to_submit) = @_;
+	if (($total_tiers - $start_tier) < 1) {
+		return 0;
+	} elsif (($total_tiers - $start_tier) < $tiers_to_submit) {
+		$tiers_to_submit = $total_tiers - $start_tier;	
+	} else {
+		#do nothing..
+	}
 	my $end_tier = $start_tier + $tiers_to_submit - 1;
 	my $tiers_in_task = $tiers_per_task;	
 	while($start_tier <= $end_tier) {
@@ -677,7 +684,7 @@ sub get_tiers_per_task {
 	my $min_time = -1;
 	
 	#Model:
-	#T(k, r) = [(a*n) + (b*k) + c] + [(t*n)/k + ceil(k/r)] + [(d*n) + (e*r)]
+	#T(k, r) = [(a*n) + (b*k) + c] + [(t*n)/k * ceil(k/r)] + [(d*n) + (e*r)]
 	
 	my $total_tier_overhead = ($per_tier_overhead * $tier_total); # (a*n)
 	my $total_tier_transfer_overhead = ($per_tier_transfer_overhead * $tier_total);	 # (d*n)
@@ -689,7 +696,7 @@ sub get_tiers_per_task {
 		
 		#below represents [(a*n) + (b*k) + c]
 		my $projected_serial_time = $total_tier_overhead + $task_overhead + $serial_execn_time; 	
-		#below represents [(t*n)/k + ceil(k/r)]
+		#below represents [(t*n)/k * ceil(k/r)]
 		my $projected_parallel_time = ($total_parallel_time / $i) * ceil($i/$resource_total);
 		#below represents [(d*n) + (e*r)] 
 		my $projected_transfer_time = $total_res_transfer_overhead + $total_tier_transfer_overhead;
