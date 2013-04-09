@@ -358,7 +358,7 @@ sub SubmitWQTask {
 		exit(0);
 	}
 	
-	my $task_command .= "export PATH=/afs/nd.edu/user37/ccl/software/external/perl-5.8.9/bin:\$PATH; find -name \"*.tar\" -exec tar -x -f {} \\\;
+	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
 	                     ./maker_wq_worker";
 	my $query_seq = ""; 
 	for(my $i = 0; $i < $tiers_in_task; $i++) {
