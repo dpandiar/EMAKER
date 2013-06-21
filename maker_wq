@@ -65,6 +65,14 @@ Usage:
 Maker Options:
 
      -genome|g <filename> Specify the genome file.
+     
+	 -est|E <filename>    Specify the EST file.
+	 
+     -estr|S <filename>   Specify the EST reads file.
+     
+	 -protein|P <filename> Specify the Protein file.
+	 
+	 -snaphmm|H <filename> Specify the Snap HMM file.
 
      -predictor|p <type>  Selects the predictor(s) to use when building
                           annotations.  Defines a pool of gene models for
@@ -120,6 +128,10 @@ Work Queue Options
 	 -r <integer>	 Specify the number of resources that will be provisioned. 
  
      -d <level>  	 Sets the debug flag for Work Queue and the CCTOOLS package. For all debugging output, try 'all'.
+	 
+	 -bw <integer>	 Sets the expected network bandwidth in Mbps.
+
+	 -estimate		 Print the estimated number of resources for optimal runtime and exit.
 
 ";
 
@@ -131,6 +143,10 @@ try{
     GetOptions("RM_off|R" => \$OPT{R},
 	       "force|f" => \$OPT{force},
 	       "genome|g=s" => \$OPT{genome},
+	       "est|E=s" => \$OPT{est},
+	       "estr|S=s" => \$OPT{estr},
+	       "protein|P=s" => \$OPT{protein},
+	       "snaphmm|H=s" => \$OPT{snaphmm},
 	       "cpus|c=i" => \$OPT{cpus},
 	       "predictor=s" =>\$OPT{predictor},
 	       "retry=i" =>\$OPT{retry},
@@ -146,7 +162,9 @@ try{
 	       "N=s" => \$OPT{project},
 	       "d=s" => \$OPT{debug},
  	       "r=i" => \$OPT{resources},
- 	       "k=i" => \$OPT{size}
+ 	       "k=i" => \$OPT{size},
+ 	       "bw=i" => \$OPT{bw},
+ 	       "estimate" => \$OPT{estimate}
 	       );
 
 } catch Error::Simple with{
@@ -159,15 +177,21 @@ if(!defined $OPT{size}){
 	$OPT{size} = 1; 
 }
 
+if(!defined($OPT{"genome"})) {
+	print "Please specify the genome file that you want to annotate and run again!\n";
+	exit (0);
+}
+
 #global variables 
 my %CTL_OPT;
 my $DS_CTL;
 my $GFF_DB;
 my $build;
 my $iterator;
-my $resources_provisioned = $OPT{resources}; 
 my $tiers_per_task = $OPT{size}; 
 my $wkdir = get_wkdir();
+my $contigs_file = $OPT{genome};
+my $BW = 100; #assume 100Mbps by default
 
 try{
     #get arguments off the command line
@@ -204,15 +228,38 @@ try{
     exit($code);
 };
 
+if(defined($OPT{"est"})) {
+	set_est_maker_opts($OPT{"est"});
+}
+
+if(defined($OPT{"estr"})) {
+	set_estr_maker_opts($OPT{"estr"});
+}
+
+if(defined($OPT{"protein"})) {
+	set_protein_maker_opts($OPT{"protein"});
+}
+
+if(defined($OPT{"snaphmm"})) {
+	set_snaphmm_maker_opts($OPT{"snaphmm"});
+}
+
+if(defined($OPT{"bw"})) {
+	$BW = $OPT{"bw"};
+}
+
 my $datastore = $DS_CTL->{root}; 
 if(!-e $datastore) {
 	`mkdir $datastore`;
 }
+
 $local_execn_time += (time - $time_start);
 
 $time_start = time;
 my $total_tiers = GenTiers();
-print time." :: Total number of tiers generated was $total_tiers \n";
+print time." :: Total number of tiers is $total_tiers \n";
+estimate_optimal_resources();
+
 $tier_overhead += (time - $time_start); 
 
 ###Begin WorkQueue section
@@ -220,8 +267,9 @@ $time_start = time;
 my $wq = setup_workqueue();
 
 if(defined $OPT{resources}){
-	$tiers_per_task = get_tiers_per_task($total_tiers, $resources_provisioned);
-	print time." :: Calculated tiers per task is $tiers_per_task\n";
+	my($runtime, $test_val) = get_tiers_per_task($OPT{resources});
+	#$tiers_per_task = get_tiers_per_task($total_tiers, $resources_provisioned);
+	print time." :: Calculated tiers per task is $test_val for run_time $runtime\n";
 }
 
 my $last_annotated_tier = 0;
@@ -260,6 +308,30 @@ sub get_wkdir {
 	my $wkdir = cwd();
 	$wkdir .= "/";
 	return $wkdir;
+}
+
+sub set_est_maker_opts {
+	my($est) = @_;
+	`perl -pi -e 's/^est:(.*)/est:$est/g;' maker_opts.ctl`;
+	return 0;
+}
+
+sub set_estr_maker_opts {
+	my($estr) = @_;
+	`perl -pi -e 's/^est_reads:(.*)/est_reads:$estr/g;' maker_opts.ctl`;
+	return 0;
+}
+
+sub set_protein_maker_opts {
+	my($protein) = @_;
+	`perl -pi -e 's/^protein:(.*)/protein:$protein/g;' maker_opts.ctl`;
+	return 0;
+}
+
+sub set_snaphmm_maker_opts {
+	my($snaphmm) = @_;
+	`perl -pi -e 's/^snaphmm:(.*)/snaphmm:$snaphmm/g;' maker_opts.ctl`;
+	return 0;
 }
 
 sub GenTiers {
@@ -323,9 +395,9 @@ sub get_tiers_to_submit {
 sub get_initial_tiers_to_submit {
 	my($total_tiers, $tiers_in_task) = @_;	
 	my $total_tier_tasks = ceil($total_tiers / $tiers_in_task);
-	my $initial_tasks = ($total_tier_tasks < 100 ? $total_tier_tasks : 100);
+	my $initial_submit_tiers = ($total_tier_tasks <= 100 ? $total_tiers : 100*$tiers_in_task);
 
-	return ($initial_tasks * $tiers_in_task);
+	return $initial_submit_tiers;
 }
 
 sub submit_tiers_to_annotate {
@@ -358,7 +430,7 @@ sub SubmitWQTask {
 		exit(0);
 	}
 	
-	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
+	my $task_command .= "find -name \"*.tar\" -exec tar --skip-old-files -x -f {} \\\;
 	                     ./maker_wq_worker";
 	my $query_seq = ""; 
 	for(my $i = 0; $i < $tiers_in_task; $i++) {
@@ -398,7 +470,8 @@ sub submit_input_base_files {
 	my $lib = "$FindBin::Bin";
 	$lib =~ s/bin/lib/; 
 	if(! -e "$wkdir/lib.tar") {
-		`cd $lib; cd ..; tar -cf $wkdir/lib.tar lib/`;  
+		`tar -C $lib/.. -cf $wkdir/lib.tar lib/`;	
+		`tar -C $wkdir/perl_libs_install -rf $wkdir/lib.tar lib/`;	
 	}
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
@@ -580,7 +653,7 @@ sub submit_executable_files {
 		my $folder = $fields[scalar(@fields) - 2]; 
 		if(-e $file){
 			if (! -e "$v.tar"){
-				my $tar = `cd $prefix; cd ..; tar -cf $wkdir/$v.tar $folder`; 
+				`tar -C $prefix/.. -cf $wkdir/$v.tar $folder`; 
 			}
 			work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 			$tier_ds->CTL_OPT->{$v} = "$folder/$newfile"; 
@@ -679,45 +752,177 @@ sub process_completed_tier_task {
 	return 0;
 }
 
-sub get_tiers_per_task {
-	my($tier_total, $resource_total) = @_; #n, r
+sub get_sw_depedency_size {
+	my($tier) = @_;
+	my $tierFile = $tier."_todo.tier";
+	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
+
+	my $sw_dependency_size = 0;
 	
-	my $optimal_tasks; #k
+	$sw_dependency_size += -s "$FindBin::Bin/maker_wq_worker";
+	
+	my $lib = "$FindBin::Bin";
+	$lib =~ s/bin/lib/; 
+	if(! -e "$wkdir/lib.tar") {
+		`tar -C $lib/.. -cf $wkdir/lib.tar lib/`;	
+		`tar -C $wkdir/perl_libs_install -rf $wkdir/lib.tar lib/`;	
+	}
+	my $lib_size = -s "$wkdir/lib.tar";  
+	$sw_dependency_size += $lib_size;
+
+	if (defined $tier_ds->CTL_OPT->{_e_db}){
+		my $edb_size = 0;	
+		my @ests = @{$tier_ds->CTL_OPT->{_e_db}};
+		for(my $j = 0; $j < scalar(@ests); $j++){
+			my $file = $ests[$j]; 
+			$edb_size += -s $file;	
+		}	
+		$sw_dependency_size += $edb_size;
+	}
+
+	if (defined $tier_ds->CTL_OPT->{_p_db}){ 
+		my @proteins = @{$tier_ds->CTL_OPT->{_p_db}}; 	
+		my $pdb_size = 0;	
+		for(my $j = 0; $j < scalar(@proteins); $j++){
+			my $file = $proteins[$j]; 
+			$pdb_size += -s $file;	
+		}
+		$sw_dependency_size += $pdb_size;
+	}	
+	
+	if (defined $tier_ds->CTL_OPT->{_d_db}){
+		my @d = @{$tier_ds->CTL_OPT->{_d_db}}; 	
+		my $ddb_size = 0;	
+		for(my $j = 0; $j < scalar(@d); $j++){
+			my $file = $d[$j]; 
+			$ddb_size += -s $file;	
+		}
+		$sw_dependency_size += $ddb_size;
+	}
+
+	if (defined $tier_ds->CTL_OPT->{_r_db}){
+		my @r = @{$tier_ds->CTL_OPT->{_r_db}}; 	
+		my $rdb_size = 0;	
+		for(my $j = 0; $j < scalar(@r); $j++){
+			my $file = $r[$j]; 
+			$rdb_size += -s $file;	
+		}
+		$sw_dependency_size += $rdb_size;
+	}
+	
+	if (defined $tier_ds->CTL_OPT->{_a_db}){
+		my @a = @{$tier_ds->CTL_OPT->{_a_db}}; 	
+		my $adb_size = 0;	
+		for(my $j = 0; $j < scalar(@a); $j++){
+			my $file = $a[$j];
+			$adb_size += -s $file;	
+		}
+		$sw_dependency_size += $adb_size;
+	}
+
+	my @inputs = ("_est", "_altest", "_repeat_protein", "_protein", "_est_reads", "protein", "repeat_protein", "genome", "est", "est_reads", "altest", 'snaphmm',  'SEEN_file', 'rmlib'); 
+	my $extern_input_size = 0;	
+	foreach my $input (@inputs){
+		if (! defined $tier_ds->CTL_OPT->{$input}){next;}
+		my $file = $tier_ds->CTL_OPT->{$input}; 
+		if(-e $file){
+			$file = abs_path($file); 
+			$sw_dependency_size += -s $file;
+		}
+	}
+	
+	my @execs = ('formatdb', 'blastall', '_formater', '_tblastx', 'tblastx', 'blastx', 'xdformat', 'exonerate', 'snap', 'RepeatMasker', 'blastn', 'formatdb', 'gmhmme3', '_blastx', '_blastn', 'probuild', 'augustus', 'gmhmme3', 'gmhmmp', 'fgenesh', 'twinscan');
+	my $extern_exec_size = 0;	
+	foreach my $v (@execs){
+		my $file = $tier_ds->CTL_OPT->{$v}; 
+		if (! -e $file){ next; }
+		$file = abs_path($file); 
+		my @fields = split(/\//, $file); 
+		my $prefix = ""; 
+		for (my $j = 0; $j < scalar(@fields) - 1; $j++) {
+			$prefix .= "/".$fields[$j];
+		}
+		my $folder = $fields[scalar(@fields) - 2]; 
+		if(-e $file){
+			if (! -e "$v.tar"){
+				`tar -C $prefix/.. -cf $wkdir/$v.tar $folder`; 
+			}
+			$sw_dependency_size += -s "$v.tar";
+		}
+	}
+	
+	return $sw_dependency_size;
+}
+
+sub get_tiers_per_task {
+	my($resources) = @_; #r
+	
+	my $k; #number of tasks
+	my $optimal_tiers_per_task;
+
 	my $per_tier_overhead = 0.0001;	#a
 	my $per_task_overhead = 0.0001;	#b
-	my $serial_execn_time = 6; #c
-	my $per_tier_transfer_overhead = 0.001; #d
-	my $per_res_transfer_overhead = 60; #e
-	my $parallel_execn_time = 90; #t
+	my $serial_execn_time = 5; #c
+	my $per_byte_execn_time = 0.038;	
 	my $min_time = -1;
+
+	my $BW_Bps = $BW*1000000/8; #assume 100Mbps = 100000000/8 Bytes per sec to start
+	my $n = $total_tiers; #number of contigs to annotate
+	my $contigs_size = -s $contigs_file; #total data transferred for the sequences
+	my $d_n = $contigs_size + ($n * 5000);	
+	my $d_r = get_sw_depedency_size(0); #common data transferred to each resource & cached
 	
 	#Model:
-	#T(k, r) = [(a*n) + (b*k) + c] + [(t*n)/k * ceil(k/r)] + [(d*n) + (e*r)]
-	
-	my $total_tier_overhead = ($per_tier_overhead * $tier_total); # (a*n)
-	my $total_tier_transfer_overhead = ($per_tier_transfer_overhead * $tier_total);	 # (d*n)
-	my $total_res_transfer_overhead = ($per_res_transfer_overhead * $resource_total); # (e*r)
-	my $total_parallel_time = ($parallel_execn_time * $tier_total); # (t*n)
+	#T(n,k,r) = [T_part + T_aggr] + [(t*n)/k * ceil(k/r)] + [(d_n + (d_r * r))/BW_Bps]
 
-	for (my $i = 1; $i <= $tier_total; $i++) {
-		my $task_overhead = $per_task_overhead * $i; # (b*k)	
+	#calculate (t*n)
+	my $total_parallel_time = ($contigs_size * $per_byte_execn_time); 
+	
+	#calculate [BW * (d_n + (d_r * r))]
+	my $projected_transfer_time = ($d_n + ($d_r * $resources)) / $BW_Bps; 
+	
+	my $total_tier_overhead = ($per_tier_overhead * $n); 
+
+	#FIXME: i should be the number of tiers in a task. Not the number of tasks.
+	for (my $i = 1; $i <= $n; $i++) {
+	
+		my $k_i = ceil($n/$i); #number of tasks created for i tiers per task
 		
-		#below represents [(a*n) + (b*k) + c]
+		#calculate [(a*n) + (b*k) + c]
+		my $task_overhead = $per_task_overhead * $k_i; # (b*k)	
 		my $projected_serial_time = $total_tier_overhead + $task_overhead + $serial_execn_time; 	
-		#below represents [(t*n)/k * ceil(k/r)]
-		my $projected_parallel_time = ($total_parallel_time / $i) * ceil($i/$resource_total);
-		#below represents [(d*n) + (e*r)] 
-		my $projected_transfer_time = $total_res_transfer_overhead + $total_tier_transfer_overhead;
+		
+		#calculate [(t*n)/k * ceil(k/r)]
+		my $projected_parallel_time = ($total_parallel_time / $k_i) * ceil($k_i/$resources);
 
 		my $projected_runtime = $projected_serial_time + $projected_parallel_time + $projected_transfer_time;
 		if ($min_time < 0 || ($projected_runtime < $min_time)) {
 			$min_time = $projected_runtime;
-			$optimal_tasks = $i;	
+			$k = $k_i; #optimal number of tasks	
+			$optimal_tiers_per_task = $i; #optimal tiers per task
 		} 	
 	}
 
-	my $tiers_in_task = floor($tier_total/$optimal_tasks);
-	return $tiers_in_task;
+	#print "Size of contigs is $contigs_size, size of common data is $d_r and unique data is $d_n\n";		
+	#print "Total transfer time is $projected_transfer_time and optimal task size is $k with $optimal_tiers_per_task tiers in task\n";		
+	return ($min_time, $optimal_tiers_per_task);
+}
+
+sub estimate_optimal_resources {
+
+	print "\n------------------------------------------------------------\n";
+	print "RESOURCE ESTIMATION TABLE:\n";
+	print "------------------------------------------------------------\n";
+	my $max_resources = ($total_tiers <= 1000 ? $total_tiers : 1000);
+	for (my $i = 1; $i <= $max_resources; $i++) {
+		my($optimal_runtime, $optimal_tiers_per_task) = get_tiers_per_task($i);
+		print "$i resources: $optimal_runtime s with $optimal_tiers_per_task tiers per task\n";		
+	}
+	print "------------------------------------------------------------\n";
+	
+	if(defined($OPT{"estimate"})) {
+		exit(0);		
+	}
 }
 
 exit(0);
