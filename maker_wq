@@ -132,6 +132,8 @@ Work Queue Options
 	 -bw <integer>	 Sets the expected network bandwidth in Mbps.
 
 	 -estimate		 Print the estimated number of resources for optimal runtime and exit.
+	 
+	 -model			 Print the estimated runtimes for different task size for different resource sizes and exit.
 
 ";
 
@@ -164,7 +166,8 @@ try{
  	       "r=i" => \$OPT{resources},
  	       "k=i" => \$OPT{size},
  	       "bw=i" => \$OPT{bw},
- 	       "estimate" => \$OPT{estimate}
+ 	       "estimate" => \$OPT{estimate},
+ 	       "model" => \$OPT{model}
 	       );
 
 } catch Error::Simple with{
@@ -258,6 +261,7 @@ $local_execn_time += (time - $time_start);
 $time_start = time;
 my $total_tiers = GenTiers();
 print time." :: Total number of tiers is $total_tiers \n";
+
 estimate_optimal_resources();
 
 $tier_overhead += (time - $time_start); 
@@ -883,6 +887,12 @@ sub get_tiers_per_task {
 	
 	my $total_tier_overhead = ($per_tier_overhead * $n); 
 
+	if(defined($OPT{"model"})) {
+		my $filename = "runtime_" . $resources . "res.dat";
+		open (FH, ">>", $filename) or die "Error opening $filename: $!";
+		print FH "Tiers_per_task \t Tasks \t Runtime\n";
+	}
+	
 	#FIXME: i should be the number of tiers in a task. Not the number of tasks.
 	for (my $i = 1; $i <= $n; $i++) {
 	
@@ -896,6 +906,9 @@ sub get_tiers_per_task {
 		my $projected_parallel_time = ($total_parallel_time / $k_i) * ceil($k_i/$resources);
 
 		my $projected_runtime = $projected_serial_time + $projected_parallel_time + $projected_transfer_time;
+		if(defined($OPT{"model"})) {
+			print FH "$i \t $k_i \t $projected_runtime\n";
+		}
 		if ($min_time < 0 || ($projected_runtime < $min_time)) {
 			$min_time = $projected_runtime;
 			$k = $k_i; #optimal number of tasks	
@@ -903,13 +916,16 @@ sub get_tiers_per_task {
 		} 	
 	}
 
+	if(defined($OPT{"model"})) {
+		close (FH);
+	}
+	
 	#print "Size of contigs is $contigs_size, size of common data is $d_r and unique data is $d_n\n";		
 	#print "Total transfer time is $projected_transfer_time and optimal task size is $k with $optimal_tiers_per_task tiers in task\n";		
 	return ($min_time, $optimal_tiers_per_task);
 }
 
 sub estimate_optimal_resources {
-
 	print "\n------------------------------------------------------------\n";
 	print "RESOURCE ESTIMATION TABLE:\n";
 	print "------------------------------------------------------------\n";
@@ -920,7 +936,7 @@ sub estimate_optimal_resources {
 	}
 	print "------------------------------------------------------------\n";
 	
-	if(defined($OPT{"estimate"})) {
+	if(defined($OPT{"estimate"}) or defined($OPT{"model"})) {
 		exit(0);		
 	}
 }
