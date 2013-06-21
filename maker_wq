@@ -310,9 +310,9 @@ sub get_tiers_to_submit {
 sub get_initial_tiers_to_submit {
 	my($total_tiers, $tiers_in_task) = @_;	
 	my $total_tier_tasks = ceil($total_tiers / $tiers_in_task);
-	my $initial_tasks = ($total_tier_tasks < 100 ? $total_tier_tasks : 100);
+	my $initial_submit_tiers = ($total_tier_tasks <= 100 ? $total_tiers : 100*$tiers_in_task);
 
-	return ($initial_tasks * $tiers_in_task);
+	return $initial_submit_tiers;
 }
 
 sub submit_tiers_to_annotate {
@@ -344,7 +344,7 @@ sub SubmitWQTask {
 		exit(0);
 	}
 	
-	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
+	my $task_command .= "find -name \"*.tar\" -exec tar --skip-old-files -x -f {} \\\;
 	                     ./maker_wq_worker";
 	my $query_seq = ""; 
 	for(my $i = 0; $i < $tiers_in_task; $i++) {
@@ -381,7 +381,8 @@ sub submit_input_base_files {
 	my $lib = "$FindBin::Bin";
 	$lib =~ s/bin/lib/; 
 	if(! -e "$wkdir/lib.tar") {
-		`cd $lib; cd ..; tar -cf $wkdir/lib.tar lib/`;  
+		`tar -C $lib/.. -cf $wkdir/lib.tar lib/`;	
+		`tar -C $wkdir/perl_libs_install -rf $wkdir/lib.tar lib/`;	
 	}
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 
@@ -563,7 +564,7 @@ sub submit_executable_files {
 		my $folder = $fields[scalar(@fields) - 2]; 
 		if(-e $file){
 			if (! -e "$v.tar"){
-				my $tar = `cd $prefix; cd ..; tar -cf $wkdir/$v.tar $folder`; 
+				`tar -C $prefix/.. -cf $wkdir/$v.tar $folder`; 
 			}
 			work_queue::work_queue_task_specify_file($task, "$v.tar", "$v.tar", 0, 1);
 			$tier_ds->CTL_OPT->{$v} = "$folder/$newfile"; 
