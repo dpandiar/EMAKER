@@ -194,7 +194,7 @@ my $iterator;
 my $tiers_per_task = $OPT{size}; 
 my $wkdir = get_wkdir();
 my $contigs_file = $OPT{genome};
-my $BW = 100; #assume 100Mbps by default
+my $BW = 100; #assume 100MBps by default
 
 try{
     #get arguments off the command line
@@ -869,26 +869,26 @@ sub get_tiers_per_task {
 	my $k; #number of tasks
 	my $optimal_tiers_per_task;
 
-	my $per_tier_overhead = 0.0001;	#a
-	my $per_task_overhead = 0.0001;	#b
-	my $serial_execn_time = 5; #c
+	my $per_tier_overhead = 0.00005;
+	my $per_task_overhead = 0.00001;
 	my $per_byte_execn_time = 0.038;	
 	my $min_time = -1;
 
-	my $BW_Bps = $BW*1000000/8; #assume 100Mbps = 100000000/8 Bytes per sec to start
+	my $BW_Bps = $BW*1000000; #assume 100MBps to start
 	my $n = $total_tiers; #number of contigs to annotate
 	my $contigs_size = -s $contigs_file; #total data transferred for the sequences
-	my $d_n = $contigs_size + ($n * 5000);	
-	my $d_r = get_sw_depedency_size(0); #common data transferred to each resource & cached
+	my $data_unique = $contigs_size + ($n * 5000);	
+	my $data_common = get_sw_depedency_size(0); #common data transferred to each resource & cached
 	
 	#Model:
-	#T(n,k,r) = [T_part + T_aggr] + [(t*n)/k * ceil(k/r)] + [(d_n + (d_r * r))/BW_Bps]
+	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(2*data_unique + (data_common * r))/BW_Bps]. 
+	#T_merge is trivial since we just put each task output in a directory and say done.
 
 	#calculate (t*n)
 	my $total_parallel_time = ($contigs_size * $per_byte_execn_time); 
 	
-	#calculate [BW * (d_n + (d_r * r))]
-	my $projected_transfer_time = ($d_n + ($d_r * $resources)) / $BW_Bps; 
+	#calculate [BW * (data_unique + (data_common * r))]
+	my $transfer_overhead = (2*$data_unique + ($data_common * $resources)) / $BW_Bps; 
 	
 	my $total_tier_overhead = ($per_tier_overhead * $n); 
 
@@ -903,19 +903,18 @@ sub get_tiers_per_task {
 	
 		my $k_i = ceil($n/$i); #number of tasks created for i tiers per task
 		
-		#calculate [(a*n) + (b*k) + c]
-		my $task_overhead = $per_task_overhead * $k_i; # (b*k)	
-		my $projected_serial_time = $total_tier_overhead + $task_overhead + $serial_execn_time; 	
+		my $task_overhead = $per_task_overhead * $k_i; 
+		my $partition_overhead = $total_tier_overhead + $task_overhead; 
 		
 		#calculate [(t*n)/k * ceil(k/r)]
-		my $projected_parallel_time = ($total_parallel_time / $k_i) * ceil($k_i/$resources);
+		my $parallel_execution_time = ($total_parallel_time / $k_i) * ceil($k_i/$resources);
 
-		my $projected_runtime = $projected_serial_time + $projected_parallel_time + $projected_transfer_time;
+		my $total_execution_time = $partition_overhead + $parallel_execution_time + $transfer_overhead;
 		if(defined($OPT{"model"})) {
-			print FH "$i \t $k_i \t $projected_runtime\n";
+			print FH "$i \t $k_i \t $total_execution_time\n";
 		}
-		if ($min_time < 0 || ($projected_runtime < $min_time)) {
-			$min_time = $projected_runtime;
+		if ($min_time < 0 || ($total_execution_time < $min_time)) {
+			$min_time = $total_execution_time;
 			$k = $k_i; #optimal number of tasks	
 			$optimal_tiers_per_task = $i; #optimal tiers per task
 		} 	
@@ -925,8 +924,8 @@ sub get_tiers_per_task {
 		close (FH);
 	}
 	
-	#print "Size of contigs is $contigs_size, size of common data is $d_r and unique data is $d_n\n";		
-	#print "Total transfer time is $projected_transfer_time and optimal task size is $k with $optimal_tiers_per_task tiers in task\n";		
+	#print "Size of contigs is $contigs_size, size of common data is $data_common and unique data is $data_unique\n";		
+	#print "Total transfer time is $transfer_overhead and optimal task size is $k with $optimal_tiers_per_task tiers in task\n";		
 	return ($min_time, $optimal_tiers_per_task);
 }
 
