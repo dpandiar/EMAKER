@@ -451,8 +451,8 @@ sub SubmitWQTask {
 
 	$time_start = time;
 	submit_env_files($task);
+	submit_input_base_files($task, $tier_to_submit);
 	for(my $i = 0; $i < $tiers_in_task; $i++){
-		submit_input_base_files($task, $tier_to_submit);
 		submit_input_tier_files($task, $tier_to_submit);
 		configure_remote_tier_annotation($tier_to_submit);	
 		specify_output_tier_files($task, $tier_to_submit);
@@ -485,6 +485,7 @@ sub submit_input_base_files {
 	
 	my $tierFile = $tier."_todo.tier";
 	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
+	
 	submit_edb_input_files($task, \$tier_ds);
 	submit_pdb_input_files($task, \$tier_ds);	
 	submit_ddb_input_files($task, \$tier_ds);	
