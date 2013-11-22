@@ -127,7 +127,7 @@ Work Queue Options
      
 	 -r <integer>	 Specify the number of resources that will be provisioned. 
  
-     -d <level>  	 Sets the debug flag for Work Queue and the CCTOOLS package. For all debugging output, try 'all'.
+     -d <level>  	 Sets the debug flag for Work Queue. For all debugging output, try 'all'.
 	 
 	 -bw <integer>	 Sets the expected network bandwidth in Mbps.
 
@@ -259,7 +259,7 @@ if(!-e $datastore) {
 $local_execn_time += (time - $time_start);
 
 $time_start = time;
-my $total_tiers = GenTiers();
+my $total_tiers = generate_tier_files();
 print time." :: Total number of tiers is $total_tiers \n";
 
 estimate_optimal_resources();
@@ -271,8 +271,8 @@ $time_start = time;
 my $wq = setup_workqueue();
 
 if(defined $OPT{resources}){
-	my($runtime, $test_val) = get_tiers_per_task($OPT{resources});
-	#$tiers_per_task = get_tiers_per_task($total_tiers, $resources_provisioned);
+	my($runtime, $test_val) = get_optimal_runtimes($OPT{resources});
+	#$tiers_per_task = get_optimal_runtimes($total_tiers, $resources_provisioned);
 	print time." :: Calculated tiers per task is $test_val for run_time $runtime\n";
 }
 
@@ -301,6 +301,7 @@ while ($annotated_tiers < $tiers_submitted) {
 	}
 }
 
+remove_tier_files();
 delete_workqueue($wq);
 $wq_execn_time += (time - $time_start); 
 
@@ -338,7 +339,7 @@ sub set_snaphmm_maker_opts {
 	return 0;
 }
 
-sub GenTiers {
+sub generate_tier_files {
 	# $iterator is implicitly global
 	my $tier_ds;
 	my $numTiers = 0;
@@ -729,10 +730,7 @@ sub delete_workqueue {
 }
 
 sub remove_tier_files {
-	my ($start_tier, $num_tiers) = @_;
-	for(my $j = 0; $j < $num_tiers; $j++) {
-		unlink "$start_tier\_todo.tier";
-	}	
+	unlink "*.tier";
 }
 
 sub process_completed_tier_task {
@@ -751,7 +749,6 @@ sub process_completed_tier_task {
 		}
 		if($retStatus == 0 || $retStatus == 1) {
 			print time." :: Finished WQ task with starting tier $counter.\n";
-			remove_tier_files($counter, $tiers_per_task);
 			work_queue::work_queue_task_delete($t);
 			return 1;
 		} else { #tier resubmission on failure 
@@ -870,22 +867,26 @@ sub get_sw_depedency_size {
 	return $sw_dependency_size;
 }
 
-sub get_tiers_per_task {
-	my($resources) = @_; #r
+sub get_optimal_runtimes {
+	my($resources) = @_; 
 	
-	my $k; #number of tasks
-	my $optimal_tiers_per_task;
-
 	my $per_tier_overhead = 0.00005;
 	my $per_task_overhead = 0.00001;
 	my $per_byte_execn_time = 0.038;	
-	my $min_time = -1;
-
 	my $BW_Bps = $BW*1000000; #assume 100MBps to start
-	my $n = $total_tiers; #number of contigs to annotate
-	my $contigs_size = -s $contigs_file; #total data transferred for the sequences
-	my $data_unique = $contigs_size + ($n * 5000);	
+	
+	my $min_time = -1;
+	my $optimal_tasks;
+	my $optimal_tiers_per_task;
+
+	my $contigs_size = 0; 
+	for (my $i = 0; $i < $total_tiers; $i++) {
+		$contigs_size += -s "$i\_todo.tier";
+	}
+	
+	my $data_unique = $contigs_size; 
 	my $data_common = get_sw_depedency_size(0); #common data transferred to each resource & cached
+	print "Size of contigs is $contigs_size, size of common data is $data_common and unique data is $data_unique\n";		
 	
 	#Model:
 	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(2*data_unique + (data_common * r))/BW_Bps]. 
@@ -894,10 +895,9 @@ sub get_tiers_per_task {
 	#calculate (t*n)
 	my $total_parallel_time = ($contigs_size * $per_byte_execn_time); 
 	
-	#calculate [BW * (data_unique + (data_common * r))]
 	my $transfer_overhead = (2*$data_unique + ($data_common * $resources)) / $BW_Bps; 
 	
-	my $total_tier_overhead = ($per_tier_overhead * $n); 
+	my $total_tier_overhead = ($per_tier_overhead * $total_tiers); 
 
 	if(defined($OPT{"model"})) {
 		my $filename = "runtime_" . $resources . "res.dat";
@@ -906,24 +906,24 @@ sub get_tiers_per_task {
 	}
 	
 	#FIXME: i should be the number of tiers in a task. Not the number of tasks.
-	for (my $i = 1; $i <= $n; $i++) {
+	for (my $i = 1; $i <= $total_tiers; $i++) {
 	
-		my $k_i = ceil($n/$i); #number of tasks created for i tiers per task
+		my $tasks = ceil($total_tiers/$i); #number of tasks created for i tiers per task
 		
-		my $task_overhead = $per_task_overhead * $k_i; 
+		my $task_overhead = $per_task_overhead * $tasks;
 		my $partition_overhead = $total_tier_overhead + $task_overhead; 
 		
 		#calculate [(t*n)/k * ceil(k/r)]
-		my $parallel_execution_time = ($total_parallel_time / $k_i) * ceil($k_i/$resources);
+		my $parallel_execution_time = ($total_parallel_time / $tasks) * ceil($tasks/$resources);
 
 		my $total_execution_time = $partition_overhead + $parallel_execution_time + $transfer_overhead;
 		if(defined($OPT{"model"})) {
-			print FH "$i \t $k_i \t $total_execution_time\n";
+			print FH "$i \t $tasks \t $total_execution_time\n";
 		}
 		if ($min_time < 0 || ($total_execution_time < $min_time)) {
 			$min_time = $total_execution_time;
-			$k = $k_i; #optimal number of tasks	
-			$optimal_tiers_per_task = $i; #optimal tiers per task
+			$optimal_tasks = $tasks; 
+			$optimal_tiers_per_task = $i; 
 		} 	
 	}
 
@@ -931,8 +931,7 @@ sub get_tiers_per_task {
 		close (FH);
 	}
 	
-	#print "Size of contigs is $contigs_size, size of common data is $data_common and unique data is $data_unique\n";		
-	#print "Total transfer time is $transfer_overhead and optimal task size is $k with $optimal_tiers_per_task tiers in task\n";		
+	#print "Total transfer time is $transfer_overhead and optimal task size is $optimal_tasks with $optimal_tiers_per_task tiers in task\n";		
 	return ($min_time, $optimal_tiers_per_task);
 }
 
@@ -942,7 +941,7 @@ sub estimate_optimal_resources {
 	print "------------------------------------------------------------\n";
 	my $max_resources = ($total_tiers <= 1000 ? $total_tiers : 1000);
 	for (my $i = 1; $i <= $max_resources; $i++) {
-		my($optimal_runtime, $optimal_tiers_per_task) = get_tiers_per_task($i);
+		my($optimal_runtime, $optimal_tiers_per_task) = get_optimal_runtimes($i);
 		print "$i resources: $optimal_runtime s with $optimal_tiers_per_task tiers per task\n";		
 	}
 	print "------------------------------------------------------------\n";
