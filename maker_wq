@@ -728,6 +728,13 @@ sub delete_workqueue {
 	work_queue::work_queue_delete($wq);
 }
 
+sub remove_tier_files {
+	my ($start_tier, $num_tiers) = @_;
+	for(my $j = 0; $j < $num_tiers; $j++) {
+		unlink "$start_tier\_todo.tier";
+	}	
+}
+
 sub process_completed_tier_task {
 	my($wq, $timeout) = @_;
 
@@ -744,7 +751,7 @@ sub process_completed_tier_task {
 		}
 		if($retStatus == 0 || $retStatus == 1) {
 			print time." :: Finished WQ task with starting tier $counter.\n";
-			unlink "$counter\_todo.tier" or warn "Could not unlink $counter\_todo.tier: $!\n";
+			remove_tier_files($counter, $tiers_per_task);
 			work_queue::work_queue_task_delete($t);
 			return 1;
 		} else { #tier resubmission on failure 
