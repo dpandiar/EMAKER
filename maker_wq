@@ -251,62 +251,71 @@ if(defined($OPT{"bw"})) {
 	$BW = $OPT{"bw"};
 }
 
+if(defined($OPT{"samplesize"})) {
+	$sample_size = $OPT{"sample_size"}; 
+}
+
 my $datastore = $DS_CTL->{root}; 
 if(!-e $datastore) {
 	`mkdir $datastore`;
 }
 
-$local_execn_time += (time - $time_start);
+#Main loop here
+main(); 
 
-$time_start = time;
-my $total_tiers = generate_tier_files();
-print time." :: Total number of tiers is $total_tiers \n";
-
-estimate_optimal_resources();
-
-$tier_overhead += (time - $time_start); 
-
-###Begin WorkQueue section
-$time_start = time; 
-my $wq = setup_workqueue();
-
-if(defined $OPT{resources}){
-	my($runtime, $test_val) = get_optimal_runtimes($OPT{resources});
-	#$tiers_per_task = get_optimal_runtimes($total_tiers, $resources_provisioned);
-	print time." :: Calculated tiers per task is $test_val for run_time $runtime\n";
-}
-
-my $last_annotated_tier = 0;
-my $init_tiers_submit = get_initial_tiers_to_submit($total_tiers, $tiers_per_task); 
-$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, $last_annotated_tier, $init_tiers_submit);
-print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
-my $tiers_submitted = $init_tiers_submit;
-
+my $total_tiers = 0;
 my %task_failures; 
 
-my $annotated_tiers = 0;
-while ($annotated_tiers < $tiers_submitted) {
-	$annotated_tiers += $tiers_per_task * process_completed_tier_task($wq, 5);
-	my $tiers_to_submit = get_tiers_to_submit($tiers_per_task);
-	while ($tiers_to_submit > 0 && $tiers_submitted < $total_tiers) {
-		print time." :: There is capacity to annotate $tiers_to_submit tiers.\n";
-		my $remaining_tiers = $total_tiers - $tiers_submitted;	
-		if ($tiers_to_submit > $remaining_tiers) {	
-			$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $remaining_tiers);	
-			$tiers_submitted += $remaining_tiers; 
-		} else {
-			$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $tiers_to_submit);
-			$tiers_submitted += $tiers_to_submit; 
+sub main {
+	$total_tiers = generate_tier_files();
+	print time." :: Total number of tiers is $total_tiers \n";
+
+	estimate_optimal_resources();
+
+	###Begin WorkQueue section
+	my $wq = setup_workqueue();
+
+	if(defined $OPT{resources}){
+		my($runtime, $test_val) = get_optimal_runtimes($OPT{resources});
+		#$tiers_per_task = get_optimal_runtimes($total_tiers, $resources_provisioned);
+		print time." :: Calculated tiers per task is $test_val for run_time $runtime\n";
+	}
+		
+	my $last_annotated_tier = 0;
+	if(sample_env) {
+		$last_annotated_tier = submit_tiers_to_annotate($wq, 0, 2);
+	}
+
+	my $init_tiers_submit = get_initial_tiers_to_submit($total_tiers, $tiers_per_task); 
+	$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, $last_annotated_tier, $init_tiers_submit);
+	print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
+	my $tiers_submitted = $init_tiers_submit;
+
+	my $annotated_tiers = 0;
+	while ($annotated_tiers < $tiers_submitted) {
+		$annotated_tiers += $tiers_per_task * process_completed_tier_task($wq, 5);
+		my $tiers_to_submit = get_tiers_to_submit($wq, $tiers_per_task);
+		while ($tiers_to_submit > 0 && $tiers_submitted < $total_tiers) {
+			print time." :: There is capacity to annotate $tiers_to_submit tiers.\n";
+			my $remaining_tiers = $total_tiers - $tiers_submitted;	
+			if ($tiers_to_submit > $remaining_tiers) {	
+				$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $remaining_tiers);	
+				$tiers_submitted += $remaining_tiers; 
+			} else {
+				$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $tiers_to_submit);
+				$tiers_submitted += $tiers_to_submit; 
+			}
 		}
 	}
+
+	remove_tier_files();
+	delete_workqueue($wq);
+
+	print "\n".time." :: Tiers annotated :: $annotated_tiers in total \n";
+
+	my $total_time = time - $start_time;
+	print time." :: Timing totals: total time: $total_time, partition_time: $partition_time, parallel execution time: $parallel_time\n";
 }
-
-remove_tier_files();
-delete_workqueue($wq);
-$wq_execn_time += (time - $time_start); 
-
-print "\n".time." :: Tiers annotated :: $annotated_tiers in total \n";
-print time." :: Timing totals: local_execn_time: $local_execn_time, WQ time: $wq_execn_time\n";
 
 #------------------------------- FUNCTION DEFINITIONS -------------------------------------
 sub get_wkdir {
@@ -390,7 +399,7 @@ sub setup_workqueue {
 }
 
 sub get_tiers_to_submit {
-	my ($tiers_in_task) = @_;
+	my ($wq, $tiers_in_task) = @_;
 	my $tasks_to_submit = work_queue::work_queue_hungry($wq);
 	my $tiers_to_submit = $tasks_to_submit * $tiers_in_task;
 
@@ -406,7 +415,10 @@ sub get_initial_tiers_to_submit {
 }
 
 sub submit_tiers_to_annotate {
-	my($wq, $total_tiers, $start_tier, $tiers_to_submit) = @_;
+	my($wq, $start_tier, $tiers_to_submit) = @_;
+	
+	my $partition_start_time = time;
+
 	if (($total_tiers - $start_tier) < 1) {
 		return 0;
 	} elsif (($total_tiers - $start_tier) < $tiers_to_submit) {
@@ -424,12 +436,13 @@ sub submit_tiers_to_annotate {
 		SubmitWQTask($wq, $start_tier, $tiers_in_task);
 		$start_tier += $tiers_in_task;	
 	}
+
+	$partition_time += (time - $partition_start_time);
 	return $end_tier; #return last annotated tier.
 }
 
 sub SubmitWQTask {
 	my($wq, $tier_to_submit, $tiers_in_task) = @_;
-	my $time_start = time;	
 	if($tiers_in_task < 1) {
 		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
@@ -448,9 +461,7 @@ sub SubmitWQTask {
 	print time." :: Creating WQ task for query sequence(s) $query_seq\n";  
 	my $task = work_queue::work_queue_task_create("$task_command $query_seq"); 
 	work_queue::work_queue_task_specify_tag($task, "$tier_to_submit"); #parm2 must be a string
-	$wq_task_overhead += (time - $time_start);
 
-	$time_start = time;
 	submit_env_files($task);
 	submit_input_base_files($task, $tier_to_submit);
 	for(my $i = 0; $i < $tiers_in_task; $i++){
@@ -459,7 +470,6 @@ sub SubmitWQTask {
 		specify_output_tier_files($task, $tier_to_submit);
 		$tier_to_submit++; 
 	}
-	$tier_overhead += (time - $time_start);	
 	
 	work_queue::work_queue_submit($wq, $task);
 	print time." :: Submitted task with command: $task_command for query seq: $query_seq\n";
@@ -886,7 +896,6 @@ sub get_optimal_runtimes {
 	
 	my $data_unique = $contigs_size; 
 	my $data_common = get_sw_depedency_size(0); #common data transferred to each resource & cached
-	print "Size of contigs is $contigs_size, size of common data is $data_common and unique data is $data_unique\n";		
 	
 	#Model:
 	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(2*data_unique + (data_common * r))/BW_Bps]. 
