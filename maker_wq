@@ -8,12 +8,16 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
 
-my $local_execn_time = 0; 
-my $wq_execn_time = 0; 
-my $wq_task_overhead = 0;
-my $tier_overhead = 0;
+my $start_time = time; 
 
-my $time_start = time; 
+my $partition_time = 0; 
+my $parallel_time = 0; 
+
+#Default values for model
+my $per_tier_part_overhead = 0.00005;
+my $per_task_part_overhead = 0.00001;
+my $per_byte_execn_time = 0.03;	
+
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
@@ -880,10 +884,7 @@ sub get_sw_depedency_size {
 sub get_optimal_runtimes {
 	my($resources) = @_; 
 	
-	my $per_tier_overhead = 0.00005;
-	my $per_task_overhead = 0.00001;
-	my $per_byte_execn_time = 0.038;	
-	my $BW_Bps = $BW*1000000; #assume 100MBps to start
+	my $BW_Bps = $BW*1000000; 
 	
 	my $min_time = -1;
 	my $optimal_tasks;
@@ -906,7 +907,7 @@ sub get_optimal_runtimes {
 	
 	my $transfer_overhead = (2*$data_unique + ($data_common * $resources)) / $BW_Bps; 
 	
-	my $total_tier_overhead = ($per_tier_overhead * $total_tiers); 
+	my $total_tier_overhead = ($per_tier_part_overhead * $total_tiers); 
 
 	if(defined($OPT{"model"})) {
 		my $filename = "runtime_" . $resources . "res.dat";
@@ -919,7 +920,7 @@ sub get_optimal_runtimes {
 	
 		my $tasks = ceil($total_tiers/$i); #number of tasks created for i tiers per task
 		
-		my $task_overhead = $per_task_overhead * $tasks;
+		my $task_overhead = $per_task_part_overhead * $tasks;
 		my $partition_overhead = $total_tier_overhead + $task_overhead; 
 		
 		#calculate [(t*n)/k * ceil(k/r)]
