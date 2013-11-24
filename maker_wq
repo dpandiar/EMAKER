@@ -18,6 +18,8 @@ my $per_tier_part_overhead = 0.00005;
 my $per_task_part_overhead = 0.00001;
 my $per_byte_execn_time = 0.03;	
 
+my $sample_env = 0;
+my $sample_size = 2;
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
@@ -138,6 +140,10 @@ Work Queue Options
 	 -estimate		 Print the estimated number of resources for optimal runtime and exit.
 	 
 	 -model			 Print the estimated runtimes for different task size for different resource sizes and exit.
+	 
+	 -sample		 Empirically estimate the model coefficients by sampling the execution environment. 
+	 
+	 -samplesize <int>  Specify the number of sample partitions. (default = $sample_size) 
 
 ";
 
@@ -171,7 +177,9 @@ try{
  	       "k=i" => \$OPT{size},
  	       "bw=i" => \$OPT{bw},
  	       "estimate" => \$OPT{estimate},
- 	       "model" => \$OPT{model}
+ 	       "model" => \$OPT{model},
+ 	       "sample" => \$OPT{sample_env},
+ 	       "samplesize=i" => \$OPT{samplesize}
 	       );
 
 } catch Error::Simple with{
