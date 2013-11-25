@@ -279,7 +279,10 @@ my $total_tiers = 0;
 my %task_failures; 
 
 sub main {
-	$total_tiers = generate_tier_files();
+	$total_tiers = generate_tiers();
+	my $tiers_to_annotate = $total_tiers;
+	my $start_tier = 0;
+	
 	print time." :: Total number of tiers is $total_tiers \n";
 
 	estimate_optimal_resources();
@@ -294,39 +297,35 @@ sub main {
 	}
 		
 	my $last_annotated_tier = 0;
-	if(sample_env) {
-		$last_annotated_tier = submit_tiers_to_annotate($wq, 0, 2);
+	if($sample_env) {
+		$last_annotated_tier = submit_tiers_to_annotate($wq, 1, 0, 2);
 	}
 
-	my $init_tiers_submit = get_initial_tiers_to_submit($total_tiers, $tiers_per_task); 
-	$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, $last_annotated_tier, $init_tiers_submit);
-	print time." :: Initial submission to Work Queue is $init_tiers_submit tiers\n";
-	my $tiers_submitted = $init_tiers_submit;
-
-	my $annotated_tiers = 0;
-	while ($annotated_tiers < $tiers_submitted) {
-		$annotated_tiers += $tiers_per_task * process_completed_tier_task($wq, 5);
-		my $tiers_to_submit = get_tiers_to_submit($wq, $tiers_per_task);
-		while ($tiers_to_submit > 0 && $tiers_submitted < $total_tiers) {
-			print time." :: There is capacity to annotate $tiers_to_submit tiers.\n";
-			my $remaining_tiers = $total_tiers - $tiers_submitted;	
-			if ($tiers_to_submit > $remaining_tiers) {	
-				$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $remaining_tiers);	
-				$tiers_submitted += $remaining_tiers; 
-			} else {
-				$last_annotated_tier = submit_tiers_to_annotate($wq, $total_tiers, ($last_annotated_tier+1), $tiers_to_submit);
-				$tiers_submitted += $tiers_to_submit; 
-			}
+	my $total_tiers_annotated = 0;
+	while($total_tiers_annotated < $total_tiers) {
+		$tiers_per_task = get_tiers_per_task($tiers_to_annotate, $start_tier);
+		my $tasks_to_submit = get_tasks_to_submit($wq);
+		if($tasks_to_submit > ceil($tiers_to_annotate/$tiers_per_task)) {
+			$tasks_to_submit = ceil($tiers_to_annotate/$tiers_per_task);
 		}
+		submit_annotation_tasks($wq, $start_tier, $tiers_per_task, $tasks_to_submit);
+		
+		my $tiers_annotated = $tiers_per_task * $tasks_to_submit;
+		$start_tier += $tiers_annotated;
+		$total_tiers_annotated += $tiers_annotated;
+		$tiers_to_annotate = $total_tiers - $tiers_annotated;
+		
+		process_completed_tasks($wq, $tasks_to_submit, 5);	
 	}
 
 	remove_tier_files();
 	delete_workqueue($wq);
 
-	print "\n".time." :: Tiers annotated :: $annotated_tiers in total \n";
+	print "\n".time." :: Tiers annotated :: $total_tiers_annotated in total \n";
 
 	my $total_time = time - $start_time;
-	print time." :: Timing totals: total time: $total_time, partition_time: $partition_time, parallel execution time: $parallel_time\n";
+	print time." :: Timing totals: total time: $total_time\n";
+	#print time." :: Timing totals: total time: $total_time, partition_time: $partition_time, parallel execution time: $parallel_time\n";
 }
 
 #------------------------------- FUNCTION DEFINITIONS -------------------------------------
@@ -360,7 +359,7 @@ sub set_snaphmm_maker_opts {
 	return 0;
 }
 
-sub generate_tier_files {
+sub generate_tiers {
 	# $iterator is implicitly global
 	my $tier_ds;
 	my $numTiers = 0;
@@ -410,51 +409,44 @@ sub setup_workqueue {
 	return $wq;
 }
 
-sub get_tiers_to_submit {
-	my ($wq, $tiers_in_task) = @_;
+sub get_tiers_per_task {
+	my ($total_tiers, $start_tier) = @_;
+	#Eventually, this will use the model to find the tiers per task.
+	return $tiers_per_task;
+}
+
+sub get_tasks_to_submit {
+	my ($wq) = @_;
 	my $tasks_to_submit = work_queue::work_queue_hungry($wq);
-	my $tiers_to_submit = $tasks_to_submit * $tiers_in_task;
+		
+	if($tasks_to_submit <= 0) { 
+		$tasks_to_submit = 10;
+	}
 
-	return $tiers_to_submit;
+	return $tasks_to_submit;
 }
 
-sub get_initial_tiers_to_submit {
-	my($total_tiers, $tiers_in_task) = @_;	
-	my $total_tier_tasks = ceil($total_tiers / $tiers_in_task);
-	my $initial_submit_tiers = ($total_tier_tasks <= 100 ? $total_tiers : 100*$tiers_in_task);
-
-	return $initial_submit_tiers;
-}
-
-sub submit_tiers_to_annotate {
-	my($wq, $start_tier, $tiers_to_submit) = @_;
+sub submit_annotation_tasks {
+	my($wq, $start_tier, $tiers_per_task, $num_tasks) = @_;
 	
-	my $partition_start_time = time;
-
-	if (($total_tiers - $start_tier) < 1) {
-		return 0;
-	} elsif (($total_tiers - $start_tier) < $tiers_to_submit) {
-		$tiers_to_submit = $total_tiers - $start_tier;	
-	} else {
-		#do nothing..
-	}
-	my $end_tier = $start_tier + $tiers_to_submit - 1;
-	my $tiers_in_task = $tiers_per_task;	
-	while($start_tier <= $end_tier) {
-		my $tiers_left = ($end_tier - $start_tier) + 1; 
-		if ( $tiers_left < $tiers_per_task) {
-			$tiers_in_task = $tiers_left; 
+	my $submitted_tasks = 0;	
+	while($submitted_tasks < $num_tasks) {
+		if($start_tier > $total_tiers) {
+			last;
 		}
-		SubmitWQTask($wq, $start_tier, $tiers_in_task);
-		$start_tier += $tiers_in_task;	
+		if ($start_tier+$tiers_per_task > $total_tiers) {
+			$tiers_per_task = $total_tiers - $start_tier;
+		}
+		submit_task($wq, $start_tier, $tiers_per_task);
+		$start_tier += $tiers_per_task;	
+		$submitted_tasks++;	
 	}
 
-	$partition_time += (time - $partition_start_time);
-	return $end_tier; #return last annotated tier.
+	return $submitted_tasks; #return number of submitted tasks 
 }
 
-sub SubmitWQTask {
-	my($wq, $tier_to_submit, $tiers_in_task) = @_;
+sub submit_task {
+	my($wq, $start_tier, $tiers_in_task) = @_;
 	if($tiers_in_task < 1) {
 		print STDERR "Invalid query size. Should be at least 1.\n"; 
 		exit(0);
@@ -462,29 +454,26 @@ sub SubmitWQTask {
 	
 	my $task_command .= "find -name \"*.tar\" -exec tar --skip-old-files -x -f {} \\\;
 	                     ./maker_wq_worker";
-	my $query_seq = ""; 
-	for(my $i = 0; $i < $tiers_in_task; $i++) {
-		my $val = $tier_to_submit + $i; 
-		$query_seq .= "$val "; 
-	}
-	if($query_seq eq ""){
-		return 0; 
-	}
-	print time." :: Creating WQ task for query sequence(s) $query_seq\n";  
-	my $task = work_queue::work_queue_task_create("$task_command $query_seq"); 
-	work_queue::work_queue_task_specify_tag($task, "$tier_to_submit"); #parm2 must be a string
-
-	submit_env_files($task);
-	submit_input_base_files($task, $tier_to_submit);
-	for(my $i = 0; $i < $tiers_in_task; $i++){
-		submit_input_tier_files($task, $tier_to_submit);
-		configure_remote_tier_annotation($tier_to_submit);	
-		specify_output_tier_files($task, $tier_to_submit);
-		$tier_to_submit++; 
+	my $query_seqs = ""; 
+	for(my $tier_num = $start_tier; $tier_num < $start_tier+$tiers_in_task; $tier_num++) {
+		$query_seqs .= "$tier_num "; 
 	}
 	
+	print time." :: Creating WQ task for query sequence(s) $query_seqs\n";  
+	my $task = work_queue::work_queue_task_create("$task_command $query_seqs"); 
+	my $task_tag = "$start_tier" . "-" . ($start_tier+$tiers_in_task-1);
+	print time." :: Assigning tag $task_tag to task created for query sequence(s) $query_seqs\n";  
+	work_queue::work_queue_task_specify_tag($task, $task_tag); 
+
+	submit_env_files($task);
+	submit_input_base_files($task, $start_tier);
+	for(my $tier_num = $start_tier; $tier_num < ($start_tier+$tiers_in_task); $tier_num++){
+		submit_input_tier_files($task, $tier_num);
+		configure_remote_tier_annotation($tier_num);	
+		specify_output_tier_files($task, $tier_num);
+	}	
 	work_queue::work_queue_submit($wq, $task);
-	print time." :: Submitted task with command: $task_command for query seq: $query_seq\n";
+	print time." :: Submitted task with command: $task_command for query seq: $query_seqs\n";
 
 	return 1;
 }
@@ -755,36 +744,40 @@ sub remove_tier_files {
 	unlink "*.tier";
 }
 
-sub process_completed_tier_task {
-	my($wq, $timeout) = @_;
+sub process_completed_tasks {
+	my($wq, $tasks_to_retrieve, $timeout) = @_;
 
-	#some thing is launching "maintain.pl" which becomes a zombie script, it needs to die before we run WQ wait. 
+	#somewhere MAKER launches "maintain.pl" which becomes a zombie script, it needs to be reaped before WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
-	my $t = work_queue::work_queue_wait($wq, $timeout); 
-	if(defined($t)) {
-		my $counter = $t->{tag}; 
-		my $output = $t->{output}; 
-		my $retStatus = index($output, "EXIT:");
-		if ($retStatus != -1) {
-			$retStatus = substr($output, $retStatus+5, 2);
-			$retStatus = sprintf("%d", $retStatus);
-		}
-		if($retStatus == 0 || $retStatus == 1) {
-			print time." :: Finished WQ task with starting tier $counter.\n";
-			work_queue::work_queue_task_delete($t);
-			return 1;
-		} else { #tier resubmission on failure 
-			$task_failures{$counter} += 1; 
-			if($task_failures{$counter} < 5){
-				print time." :: Failed, resubmitting WQ task with starting tier $counter\n";
-				work_queue::work_queue_submit($wq, $t);
-			} else{
-				print time." :: WQ task with starting tier $counter has failed too many times\n"; 
-				work_queue::work_queue_task_delete($t);
+
+	my $retrieved_tasks = 0;
+	while ($retrieved_tasks < $tasks_to_retrieve) {
+		my $t = work_queue::work_queue_wait($wq, $timeout); 
+		if(defined($t)) {
+			$retrieved_tasks++;
+			my $counter = $t->{tag}; 
+			my $output = $t->{output}; 
+			my $retStatus = index($output, "EXIT:");
+			if ($retStatus != -1) {
+				$retStatus = substr($output, $retStatus+5, 2);
+				$retStatus = sprintf("%d", $retStatus);
 			}
-		}
-	} 
-	return 0;
+			if($retStatus == 0 || $retStatus == 1) {
+				print time." :: Finished WQ task with starting tier $counter.\n";
+				work_queue::work_queue_task_delete($t);
+			} else { #tier resubmission on failure 
+				$task_failures{$counter} += 1; 
+				if($task_failures{$counter} < 5){
+					print time." :: Failed, resubmitting WQ task with starting tier $counter\n";
+					work_queue::work_queue_submit($wq, $t);
+				} else{
+					print time." :: WQ task with starting tier $counter has failed too many times\n"; 
+					work_queue::work_queue_task_delete($t);
+				}
+			}
+		} 
+	}	
+	return 1;
 }
 
 sub get_sw_depedency_size {
