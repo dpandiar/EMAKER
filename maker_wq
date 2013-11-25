@@ -14,12 +14,14 @@ my $partition_time = 0;
 my $parallel_time = 0; 
 
 #Default values for model
-my $per_tier_part_overhead = 0.00005;
-my $per_task_part_overhead = 0.00001;
-my $per_byte_execn_time = 0.03;	
+my $partition_overhead_coeff = 0.00005;
+my $per_byte_annotate_time = 0.05;	
+my $bandwidth_bytes_per_sec = 100;
+
+my $run_timing_code = 0;
 
 my $sample_env = 0;
-my $sample_size = 2;
+my $sample_tasks = 2;
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
@@ -143,7 +145,7 @@ Work Queue Options
 	 
 	 -sample		 Empirically estimate the model coefficients by sampling the execution environment. 
 	 
-	 -samplesize <int>  Specify the number of sample partitions. (default = $sample_size) 
+	 -samplesize <int>  Specify the number of sample partitions. (default = $sample_tasks) 
 
 ";
 
@@ -178,8 +180,8 @@ try{
  	       "bw=i" => \$OPT{bw},
  	       "estimate" => \$OPT{estimate},
  	       "model" => \$OPT{model},
- 	       "sample" => \$OPT{sample_env},
- 	       "samplesize=i" => \$OPT{samplesize}
+ 	       "sample" => \$OPT{sample},
+ 	       "samplesize=i" => \$OPT{sample_tasks}
 	       );
 
 } catch Error::Simple with{
@@ -263,8 +265,12 @@ if(defined($OPT{"bw"})) {
 	$BW = $OPT{"bw"};
 }
 
-if(defined($OPT{"samplesize"})) {
-	$sample_size = $OPT{"sample_size"}; 
+if(defined($OPT{"sample_tasks"})) {
+	$sample_tasks = $OPT{"sample_tasks"}; 
+}
+
+if(defined($OPT{"sample"})) {
+	$sample_env = 1;
 }
 
 my $datastore = $DS_CTL->{root}; 
@@ -282,26 +288,46 @@ sub main {
 	$total_tiers = generate_tiers();
 	my $tiers_to_annotate = $total_tiers;
 	my $start_tier = 0;
+	my $tiers_annotated = 0;
+	my $total_tiers_annotated = 0;
 	
 	print time." :: Total number of tiers is $total_tiers \n";
 
-	estimate_optimal_resources();
+	if(defined $OPT{estimate}){
+		print_optimal_values();
+		exit(0);	
+	}
 
 	###Begin WorkQueue section
 	my $wq = setup_workqueue();
 
 	if(defined $OPT{resources}){
-		my($runtime, $test_val) = get_optimal_runtimes($OPT{resources});
-		#$tiers_per_task = get_optimal_runtimes($total_tiers, $resources_provisioned);
-		print time." :: Calculated tiers per task is $test_val for run_time $runtime\n";
+		my($runtime, $test_val, $test_val2) = get_optimal_runtimes($OPT{resources});
+		print time." :: Optimal tasks is $test_val2 with $test_val tiers per task having run_time $runtime\n";
 	}
-		
-	my $last_annotated_tier = 0;
+	
 	if($sample_env) {
-		$last_annotated_tier = submit_tiers_to_annotate($wq, 1, 0, 2);
+		$run_timing_code = 1;
+		my $sample_size = ($total_tiers * 5)/100; #sample 5% of actual workload
+		if($sample_size < 1) {
+			$sample_size = 4;
+		}
+		print time." :: Sample size is $sample_size, sample tasks is $sample_tasks.\n";
+		
+		#submit 1 sample task	
+		submit_annotation_tasks($wq, 0, $sample_size/$sample_tasks, $sample_tasks);
+		
+		$tiers_annotated = $sample_size;
+		$start_tier += $tiers_annotated;
+		$total_tiers_annotated += $tiers_annotated;
+		$tiers_to_annotate = $total_tiers - $tiers_annotated;
+		
+		my $total_task_execution_time = process_completed_tasks($wq, $sample_tasks, 5);	
+		$per_byte_annotate_time = $total_task_execution_time/get_contigs_size(0, $sample_size);
+		print time." :: Measured per byte annotation time is $per_byte_annotate_time.\n";
+		$run_timing_code = 0;
 	}
 
-	my $total_tiers_annotated = 0;
 	while($total_tiers_annotated < $total_tiers) {
 		$tiers_per_task = get_tiers_per_task($tiers_to_annotate, $start_tier);
 		my $tasks_to_submit = get_tasks_to_submit($wq);
@@ -310,7 +336,7 @@ sub main {
 		}
 		submit_annotation_tasks($wq, $start_tier, $tiers_per_task, $tasks_to_submit);
 		
-		my $tiers_annotated = $tiers_per_task * $tasks_to_submit;
+		$tiers_annotated = $tiers_per_task * $tasks_to_submit;
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $tiers_annotated;
@@ -429,7 +455,16 @@ sub get_tasks_to_submit {
 sub submit_annotation_tasks {
 	my($wq, $start_tier, $tiers_per_task, $num_tasks) = @_;
 	
-	my $submitted_tasks = 0;	
+	my $submitted_tasks = 0;
+	
+	#Timing related variables.
+	my $submit_task_start;
+	my $submit_task_end; 
+	my $submit_task_time;
+	
+	if($run_timing_code == 1) {
+		$submit_task_start = time; 
+	}
 	while($submitted_tasks < $num_tasks) {
 		if($start_tier > $total_tiers) {
 			last;
@@ -437,9 +472,17 @@ sub submit_annotation_tasks {
 		if ($start_tier+$tiers_per_task > $total_tiers) {
 			$tiers_per_task = $total_tiers - $start_tier;
 		}
+		
 		submit_task($wq, $start_tier, $tiers_per_task);
 		$start_tier += $tiers_per_task;	
 		$submitted_tasks++;	
+	}
+	if($run_timing_code == 1) {
+		$submit_task_end = time; 
+		$submit_task_time = $submit_task_end - $submit_task_start;	
+		print time." :: Submit task time is $submit_task_time.\n";
+		#$partition_overhead_coeff = $submit_task_time/$submitted_tasks;
+		#print time." :: Measured partition overhead coefficient is $partition_overhead_coeff.\n";
 	}
 
 	return $submitted_tasks; #return number of submitted tasks 
@@ -747,6 +790,10 @@ sub remove_tier_files {
 sub process_completed_tasks {
 	my($wq, $tasks_to_retrieve, $timeout) = @_;
 
+	my $task_execution_times = 0;
+	my $total_transfered_bytes= 0;
+	my $total_transfer_time = 0;
+
 	#somewhere MAKER launches "maintain.pl" which becomes a zombie script, it needs to be reaped before WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
@@ -756,6 +803,14 @@ sub process_completed_tasks {
 		if(defined($t)) {
 			$retrieved_tasks++;
 			my $counter = $t->{tag}; 
+
+			if($run_timing_code == 1) {
+				$total_transfered_bytes += $t->{total_bytes_transferred};
+				$total_transfer_time += $t->{total_transfer_time};
+			}
+			$task_execution_times += $t->{cmd_execution_time}/1000000;
+
+			#Check if return status indicates failure
 			my $output = $t->{output}; 
 			my $retStatus = index($output, "EXIT:");
 			if ($retStatus != -1) {
@@ -777,7 +832,13 @@ sub process_completed_tasks {
 			}
 		} 
 	}	
-	return 1;
+	
+	if($run_timing_code == 1) {
+		$bandwidth_bytes_per_sec = $total_transfered_bytes / ($total_transfer_time / 1000000);
+		print time." :: Measured bandwidth is $bandwidth_bytes_per_sec.\n";
+	}
+
+	return $task_execution_times;
 }
 
 sub get_sw_depedency_size {
@@ -882,47 +943,48 @@ sub get_sw_depedency_size {
 	return $sw_dependency_size;
 }
 
+sub get_contigs_size {
+	my($start_tier, $num_tiers) = @_;
+	my $contigs_size = 0; 
+	for (my $i = $start_tier; $i < $num_tiers; $i++) {
+		$contigs_size += -s "$i\_todo.tier";
+	}
+	return $contigs_size;
+}
+
 sub get_optimal_runtimes {
+	#FIXME: this should take start_tier, tiers_to_annotate as arguments.
 	my($resources) = @_; 
-	
-	my $BW_Bps = $BW*1000000; 
 	
 	my $min_time = -1;
 	my $optimal_tasks;
 	my $optimal_tiers_per_task;
 
-	my $contigs_size = 0; 
-	for (my $i = 0; $i < $total_tiers; $i++) {
-		$contigs_size += -s "$i\_todo.tier";
-	}
-	
-	my $data_unique = $contigs_size; 
+	my $data_unique = get_contigs_size(0, $total_tiers); 
 	my $data_common = get_sw_depedency_size(0); #common data transferred to each resource & cached
-	
+
+	my $contigs_size = $data_unique;
+
 	#Model:
 	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(2*data_unique + (data_common * r))/BW_Bps]. 
 	#T_merge is trivial since we just put each task output in a directory and say done.
 
 	#calculate (t*n)
-	my $total_parallel_time = ($contigs_size * $per_byte_execn_time); 
+	my $total_parallel_time = ($contigs_size * $per_byte_annotate_time); 
 	
-	my $transfer_overhead = (2*$data_unique + ($data_common * $resources)) / $BW_Bps; 
+	my $transfer_overhead = (2*$data_unique + ($data_common * $resources)) / $bandwidth_bytes_per_sec; 
 	
-	my $total_tier_overhead = ($per_tier_part_overhead * $total_tiers); 
-
 	if(defined($OPT{"model"})) {
 		my $filename = "runtime_" . $resources . "res.dat";
 		open (FH, ">>", $filename) or die "Error opening $filename: $!";
 		print FH "Tiers_per_task \t Tasks \t Runtime\n";
 	}
 	
-	#FIXME: i should be the number of tiers in a task. Not the number of tasks.
 	for (my $i = 1; $i <= $total_tiers; $i++) {
 	
 		my $tasks = ceil($total_tiers/$i); #number of tasks created for i tiers per task
 		
-		my $task_overhead = $per_task_part_overhead * $tasks;
-		my $partition_overhead = $total_tier_overhead + $task_overhead; 
+		my $partition_overhead = $partition_overhead_coeff * $tasks;
 		
 		#calculate [(t*n)/k * ceil(k/r)]
 		my $parallel_execution_time = ($total_parallel_time / $tasks) * ceil($tasks/$resources);
@@ -943,23 +1005,51 @@ sub get_optimal_runtimes {
 	}
 	
 	#print "Total transfer time is $transfer_overhead and optimal task size is $optimal_tasks with $optimal_tiers_per_task tiers in task\n";		
-	return ($min_time, $optimal_tiers_per_task);
+	return ($min_time, $optimal_tiers_per_task, $optimal_tasks);
 }
 
-sub estimate_optimal_resources {
+sub get_global_optimal_values {
+	my $global_optimal_time = -1;
+	my $global_optimal_tasks;
+	my $global_optimal_tiers_per_task;
+	my $global_optimal_resources;
+	
+	my $max_resources = ($total_tiers <= 1000 ? $total_tiers : 1000);
+	for (my $i = 1; $i <= $max_resources; $i++) {
+		my($optimal_runtime, $optimal_tiers_per_task, $optimal_tasks) = get_optimal_runtimes($i);
+		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
+			$global_optimal_time = $optimal_runtime;
+			$global_optimal_tasks = $optimal_tasks;
+			$global_optimal_tiers_per_task = $optimal_tiers_per_task;
+			$global_optimal_resources = $i;
+		}
+	}
+	return ($global_optimal_time, $global_optimal_resources, $global_optimal_tasks, $global_optimal_tiers_per_task);
+}
+
+sub print_optimal_values {
+	my $global_optimal_time = -1;
+	my $global_optimal_tasks;
+	my $global_optimal_tiers_per_task;
+	my $global_optimal_resources;
+	
 	print "\n------------------------------------------------------------\n";
 	print "RESOURCE ESTIMATION TABLE:\n";
 	print "------------------------------------------------------------\n";
 	my $max_resources = ($total_tiers <= 1000 ? $total_tiers : 1000);
 	for (my $i = 1; $i <= $max_resources; $i++) {
-		my($optimal_runtime, $optimal_tiers_per_task) = get_optimal_runtimes($i);
-		print "$i resources: $optimal_runtime s with $optimal_tiers_per_task tiers per task\n";		
+		my($optimal_runtime, $optimal_tiers_per_task, $optimal_tasks) = get_optimal_runtimes($i);
+		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
+			$global_optimal_time = $optimal_runtime;
+			$global_optimal_tasks = $optimal_tasks;
+			$global_optimal_tiers_per_task = $optimal_tiers_per_task;
+			$global_optimal_resources = $i;
+		}
+		print "$i resources: $optimal_runtime s with $optimal_tasks tasks having $optimal_tiers_per_task tiers\n";		
 	}
 	print "------------------------------------------------------------\n";
-	
-	if(defined($OPT{"estimate"}) or defined($OPT{"model"})) {
-		exit(0);		
-	}
+		
+	print "\n--> Please allocate $global_optimal_resources resources that will lead to the lower run time of $global_optimal_time s using $global_optimal_tasks tasks having $global_optimal_tiers_per_task tiers in each\n";		
 }
 
 exit(0);
