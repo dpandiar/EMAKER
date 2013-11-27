@@ -15,13 +15,16 @@ my $parallel_time = 0;
 
 #Default values for model
 my $partition_overhead_coeff = 0.00005;
-my $per_byte_annotate_time = 0.05;	
-my $bandwidth_bytes_per_sec = 100;
+my $per_byte_annotate_time = 0.0005;	
+my $bandwidth_bytes_per_sec = 100*1000000/8; #100Mbps
 
 my $run_timing_code = 0;
 
 my $sample_env = 0;
 my $sample_tasks = 2;
+
+my $resources = 20;
+my $tiers_per_task = 5;
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
@@ -125,28 +128,27 @@ Maker Options:
 
 Work Queue Options
 
-     -port <integer>     Sets the port for work_queue to listen on (default: 9135)
+     -port <int>           Sets the port for work_queue to listen on (default: 9135)
  
-     -fa   <integer>     Sets the work_queue fast abort option with the given multiplier. 
+     -fa   <int>           Sets the work_queue fast abort option with the given multiplier. 
 
-     -N <project>	 Sets the project name to <project>.
+     -N <project>          Sets the project name to <project>.
 
-     -k <integer>	 Sets the number of sequences per task for remote computation. 
+     -r <intr>             Specify the number of resources that will be provisioned (default: $resources). 
+	 
+     -tiers-per-task <int> Sets the number of tiers per task for remote computation (default: $tiers_per_task). 
      
-	 -r <integer>	 Specify the number of resources that will be provisioned. 
- 
-     -d <level>  	 Sets the debug flag for Work Queue. For all debugging output, try 'all'.
+     -d <level>            Sets the debug flag for Work Queue. For all debugging output, try 'all'.
 	 
-	 -bw <integer>	 Sets the expected network bandwidth in Mbps.
+     -bw <integer>         Sets the expected network bandwidth in Mbps.
 
-	 -estimate		 Print the estimated number of resources for optimal runtime and exit.
+     -sample               Empirically estimate the model coefficients by sampling the execution environment. 
 	 
-	 -model			 Print the estimated runtimes for different task size for different resource sizes and exit.
+     -samplesize <int>     Specify the number of sample partitions. (default = $sample_tasks) 
 	 
-	 -sample		 Empirically estimate the model coefficients by sampling the execution environment. 
+     -show-estimates       Print the estimated runtimes for all possible task sizes for the given size of resources and exit.
 	 
-	 -samplesize <int>  Specify the number of sample partitions. (default = $sample_tasks) 
-
+     -show-optimals        Print the optimal size of resources and tasks for operating on the inputs and exit.
 ";
 
 #------------------------------------ MAIN -------------------------------------
@@ -176,10 +178,10 @@ try{
 	       "N=s" => \$OPT{project},
 	       "d=s" => \$OPT{debug},
  	       "r=i" => \$OPT{resources},
- 	       "k=i" => \$OPT{size},
+ 	       "tiers-per-task=i" => \$OPT{tiers_per_task},
  	       "bw=i" => \$OPT{bw},
- 	       "estimate" => \$OPT{estimate},
- 	       "model" => \$OPT{model},
+ 	       "show-estimates" => \$OPT{show_estimates},
+ 	       "show-optimals" => \$OPT{show_optimals},
  	       "sample" => \$OPT{sample},
  	       "samplesize=i" => \$OPT{sample_tasks}
 	       );
@@ -189,10 +191,6 @@ try{
     print STDERR $E->{-text};
     die "\n\nMaker failed parsing command line options!\n" if();
 };
-
-if(!defined $OPT{size}){
-	$OPT{size} = 1; 
-}
 
 if(!defined($OPT{"genome"})) {
 	print "Please specify the genome file that you want to annotate and run again!\n";
@@ -205,10 +203,8 @@ my $DS_CTL;
 my $GFF_DB;
 my $build;
 my $iterator;
-my $tiers_per_task = $OPT{size}; 
 my $wkdir = get_wkdir();
 my $contigs_file = $OPT{genome};
-my $BW = 100; #assume 100MBps by default
 
 try{
     #get arguments off the command line
@@ -261,8 +257,12 @@ if(defined($OPT{"snaphmm"})) {
 	set_snaphmm_maker_opts($OPT{"snaphmm"});
 }
 
+if(defined $OPT{"tiers_per_task"}){
+	$tiers_per_task = $OPT{"tiers_per_task"}; 
+}
+
 if(defined($OPT{"bw"})) {
-	$BW = $OPT{"bw"};
+	$bandwidth_bytes_per_sec = $OPT{"bw"}*1000000/8;
 }
 
 if(defined($OPT{"sample_tasks"})) {
@@ -271,6 +271,10 @@ if(defined($OPT{"sample_tasks"})) {
 
 if(defined($OPT{"sample"})) {
 	$sample_env = 1;
+}
+
+if(defined($OPT{"resources"})) {
+	$resources = $OPT{"resources"}; 
 }
 
 my $datastore = $DS_CTL->{root}; 
@@ -286,6 +290,8 @@ my %task_failures;
 
 sub main {
 	$total_tiers = generate_tiers();
+	my $total_tasks = ceil($total_tiers/$tiers_per_task);
+	
 	my $tiers_to_annotate = $total_tiers;
 	my $start_tier = 0;
 	my $tiers_annotated = 0;
