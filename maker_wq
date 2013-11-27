@@ -31,6 +31,8 @@ my $common_dependency_size = 0;
 my $total_tiers = 0;
 my %task_failures; 
 
+my $estimate_granularity = 1;
+
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
       $ENV{CGL_SO_SOURCE} = "$FindBin::Bin/../lib/CGL/so.obo";
@@ -153,6 +155,8 @@ Work Queue Options
 	 
      -samplesize <int>     Specify the number of sample partitions. (default = $sample_tasks) 
 	 
+     -estimate-gran <int>  Estimate runtimes with task sizes in increments of this value (default = 1).
+     
      -show-estimates       Print the estimated runtimes for all possible task sizes for the given size of resources and exit.
 	 
      -show-optimals        Print the optimal size of resources and tasks for operating on the inputs and exit.
@@ -191,7 +195,8 @@ try{
  	       "show-optimals" => \$OPT{show_optimals},
  	       "reuse-tiers" => \$OPT{reuse_tiers},
  	       "sample" => \$OPT{sample},
- 	       "samplesize=i" => \$OPT{sample_tasks}
+ 	       "samplesize=i" => \$OPT{sample_tasks},
+ 	       "estimate-gran=i" => \$OPT{estimate_granularity}
 	       );
 
 } catch Error::Simple with{
@@ -275,6 +280,10 @@ if(defined($OPT{"bw"})) {
 
 if(defined($OPT{"sample_tasks"})) {
 	$sample_tasks = $OPT{"sample_tasks"}; 
+}
+
+if(defined($OPT{"estimate_granularity"})) {
+	$estimate_granularity= $OPT{"estimate_granularity"}; 
 }
 
 if(defined($OPT{"sample"})) {
@@ -1050,19 +1059,25 @@ sub get_global_optimal_runtimes {
 		print "------------------------------------------------------------\n";
 	}
 
-	for (my $i = 1; $i <= $total_tiers; $i++) {
-		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($i, 0, $total_tiers);
+	my $tasks = 1;	
+	while ($tasks <= $total_tiers) { 
+		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, 0, $total_tiers);
 		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
 			$global_optimal_time = $optimal_runtime;
 			$global_optimal_partition_time = $optimal_partition_time;
 			$global_optimal_parallel_time = $optimal_parallel_time;
 			$global_optimal_transfer_time = $optimal_transfer_time;
-			$global_optimal_tasks = $i;
+			$global_optimal_tasks = $tasks;
 			$global_optimal_resources = $optimal_resources;
 		}
 		if(defined $OPT{"show_optimals"}){
-			print "$i $optimal_resources $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
+			print "$tasks $optimal_resources $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
 		}	
+		if($tasks == 1) {
+			$tasks += $estimate_granularity-1;
+		} else {
+			$tasks += $estimate_granularity;
+		}
 	}
 	
 	if(defined $OPT{"show_optimals"}){
