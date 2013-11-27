@@ -25,6 +25,8 @@ my $sample_tasks = 2;
 
 my $resources = 20;
 my $tiers_per_task = 5;
+	
+my $common_dependency_size = 0; 
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
@@ -142,6 +144,8 @@ Work Queue Options
 	 
      -bw <integer>         Sets the expected network bandwidth in Mbps.
 
+     -reuse-tiers          Skip generation of tiers files and reuse the tier files present in current directory.
+     
      -sample               Empirically estimate the model coefficients by sampling the execution environment. 
 	 
      -samplesize <int>     Specify the number of sample partitions. (default = $sample_tasks) 
@@ -182,6 +186,7 @@ try{
  	       "bw=i" => \$OPT{bw},
  	       "show-estimates" => \$OPT{show_estimates},
  	       "show-optimals" => \$OPT{show_optimals},
+ 	       "reuse-tiers" => \$OPT{reuse_tiers},
  	       "sample" => \$OPT{sample},
  	       "samplesize=i" => \$OPT{sample_tasks}
 	       );
@@ -289,16 +294,26 @@ my $total_tiers = 0;
 my %task_failures; 
 
 sub main {
-	$total_tiers = generate_tiers();
-	my $total_tasks = ceil($total_tiers/$tiers_per_task);
+	if(defined $OPT{"reuse_tiers"}){
+		my $i = 0; 
+		while (-e "$i\_todo.tier"){
+			$i++;
+		}
+		$total_tiers = $i-1;
+	} 
 	
+	if ($total_tiers <= 0) {
+		$total_tiers = generate_tiers();
+	}
+	print time." :: Total number of tiers is $total_tiers \n";
+	
+	my $total_tasks = ceil($total_tiers/$tiers_per_task);
 	my $tiers_to_annotate = $total_tiers;
+	
 	my $start_tier = 0;
 	my $tiers_annotated = 0;
 	my $total_tiers_annotated = 0;
 	
-	print time." :: Total number of tiers is $total_tiers \n";
-
 	if(defined $OPT{"show_optimals"}){
 		get_global_optimal_runtimes();
 		exit(0);	
@@ -968,9 +983,12 @@ sub estimate_runtime {
 	
 	my $optimal_time = -1;
 
+	if ($common_dependency_size <= 0) {	
+		$common_dependency_size = get_sw_depedency_size(); #common data transferred to each resource & cached
+	}
+	my $data_common = $common_dependency_size; 
+	
 	my $data_unique = get_contigs_size($start_tier, $num_tiers); 
-	my $data_common = get_sw_depedency_size(); #common data transferred to each resource & cached
-
 	my $contigs_size = $data_unique;
 			
 	#Model:
