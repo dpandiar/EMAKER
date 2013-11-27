@@ -1020,25 +1020,20 @@ sub get_optimal_runtimes_for_resource {
 	my $optimal_transfer_time = 0; 
 	
 	my $optimal_tasks;
-	my $optimal_tiers_per_task;
 
-	for (my $i = 1; $i <= $num_tiers; $i++) {
-		my $tasks = ceil($num_tiers/$i); #number of tasks created for i tiers per task
-		
-		my($total_time, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($i, $tasks, $start_tier, $num_tiers);
-		
+	for (my $tasks = 1; $tasks <= $num_tiers; $tasks++) {
+		my($total_time, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($resources, $tasks, $start_tier, $num_tiers);
 		if ($optimal_time < 0 || ($total_time < $optimal_time)) {
 			$optimal_time = $total_time;
 			$optimal_partition_time = $partition_time;
 			$optimal_parallel_time = $parallel_time;
 			$optimal_transfer_time = $transfer_time;
 			$optimal_tasks = $tasks; 
-			$optimal_tiers_per_task = $i; 
 		} 	
 	} 	
 	
-	#print "Total transfer time is $transfer_overhead and optimal task size is $optimal_tasks with $optimal_tiers_per_task tiers in task\n";		
-	return ($optimal_time, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tiers_per_task, $optimal_tasks);
+	#print "Total transfer time is $transfer_overhead and optimal task size is $optimal_tasks\n";		
+	return ($optimal_time, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tasks);
 }
 
 sub get_global_optimal_runtimes {
@@ -1047,7 +1042,6 @@ sub get_global_optimal_runtimes {
 	my $global_optimal_parallel_time;
 	my $global_optimal_transfer_time;
 	my $global_optimal_tasks;
-	my $global_optimal_tiers_per_task;
 	my $global_optimal_resources;
 	
 	if(defined $OPT{"show_optimals"}){
@@ -1058,25 +1052,24 @@ sub get_global_optimal_runtimes {
 
 	my $max_resources = ($total_tiers <= 1000 ? $total_tiers : 1000);
 	for (my $i = 1; $i <= $max_resources; $i++) {
-		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tiers_per_task, $optimal_tasks) = get_optimal_runtimes_for_resource($i, 0, $total_tiers);
+		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tasks) = get_optimal_runtimes_for_resource($i, 0, $total_tiers);
 		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
 			$global_optimal_time = $optimal_runtime;
 			$global_optimal_partition_time = $optimal_partition_time;
 			$global_optimal_parallel_time = $optimal_parallel_time;
 			$global_optimal_transfer_time = $optimal_transfer_time;
 			$global_optimal_tasks = $optimal_tasks;
-			$global_optimal_tiers_per_task = $optimal_tiers_per_task;
 			$global_optimal_resources = $i;
 		}
 		if(defined $OPT{"show_optimals"}){
-			print "$i $optimal_tasks $optimal_tiers_per_task $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
+			print "$i $optimal_tasks $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
 		}	
 	}
 	
 	if(defined $OPT{"show_optimals"}){
 		print "------------------------------------------------------------\n";
-		print "\n--> Please allocate $global_optimal_resources resources that will lead to the lower run time of $global_optimal_time s using $global_optimal_tasks tasks having $global_optimal_tiers_per_task tiers in each\n";		
+		print "\n--> Please allocate $global_optimal_resources resources that will lead to the lower run time of $global_optimal_time s using $global_optimal_tasks tasks.\n";		
 	}
 
-	return ($global_optimal_time, $global_optimal_partition_time, $global_optimal_parallel_time, $global_optimal_transfer_time, $global_optimal_resources, $global_optimal_tasks, $global_optimal_tiers_per_task);
+	return ($global_optimal_time, $global_optimal_partition_time, $global_optimal_parallel_time, $global_optimal_transfer_time, $global_optimal_resources, $global_optimal_tasks);
 }
