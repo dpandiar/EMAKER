@@ -28,6 +28,9 @@ my $tiers_per_task = 5;
 	
 my $common_dependency_size = 0; 
 
+my $total_tiers = 0;
+my %task_failures; 
+
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
       $ENV{CGL_SO_SOURCE} = "$FindBin::Bin/../lib/CGL/so.obo";
@@ -290,16 +293,13 @@ if(!-e $datastore) {
 #Main loop here
 main(); 
 
-my $total_tiers = 0;
-my %task_failures; 
-
 sub main {
 	if(defined $OPT{"reuse_tiers"}){
 		my $i = 0; 
 		while (-e "$i\_todo.tier"){
 			$i++;
 		}
-		$total_tiers = $i-1;
+		$total_tiers = $i;
 	} 
 	
 	if ($total_tiers <= 0) {
@@ -1011,29 +1011,29 @@ sub estimate_runtime {
 	return ($total_execution_time, $partition_time, $parallel_time, $transfer_time);
 }
 
-sub get_optimal_runtimes_for_resource {
-	my($resources, $start_tier, $num_tiers) = @_; 
+sub get_optimal_runtimes_for_tasksize {
+	my($tasks, $start_tier, $num_tiers) = @_; 
 	
 	my $optimal_time = -1;
 	my $optimal_parallel_time = 0; 
 	my $optimal_partition_time = 0; 
 	my $optimal_transfer_time = 0; 
 	
-	my $optimal_tasks;
+	my $optimal_resources;
 
-	for (my $tasks = 1; $tasks <= $num_tiers; $tasks++) {
+	for (my $resources = 1; $resources <= $tasks; $resources++) {
 		my($total_time, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($resources, $tasks, $start_tier, $num_tiers);
 		if ($optimal_time < 0 || ($total_time < $optimal_time)) {
 			$optimal_time = $total_time;
 			$optimal_partition_time = $partition_time;
 			$optimal_parallel_time = $parallel_time;
 			$optimal_transfer_time = $transfer_time;
-			$optimal_tasks = $tasks; 
+			$optimal_resources = $resources; 
 		} 	
 	} 	
 	
 	#print "Total transfer time is $transfer_overhead and optimal task size is $optimal_tasks\n";		
-	return ($optimal_time, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tasks);
+	return ($optimal_time, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources);
 }
 
 sub get_global_optimal_runtimes {
@@ -1046,23 +1046,22 @@ sub get_global_optimal_runtimes {
 	
 	if(defined $OPT{"show_optimals"}){
 		print "\n------------------------------------------------------------\n";
-		print "Resources Tasks Tiers/Task Runtime Partition Task Transfer\n";
+		print "Tasks Resources Runtime Partition Task Transfer\n";
 		print "------------------------------------------------------------\n";
 	}
 
-	my $max_resources = ($total_tiers <= 1000 ? $total_tiers : 1000);
-	for (my $i = 1; $i <= $max_resources; $i++) {
-		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tasks) = get_optimal_runtimes_for_resource($i, 0, $total_tiers);
+	for (my $i = 1; $i <= $total_tiers; $i++) {
+		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($i, 0, $total_tiers);
 		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
 			$global_optimal_time = $optimal_runtime;
 			$global_optimal_partition_time = $optimal_partition_time;
 			$global_optimal_parallel_time = $optimal_parallel_time;
 			$global_optimal_transfer_time = $optimal_transfer_time;
-			$global_optimal_tasks = $optimal_tasks;
-			$global_optimal_resources = $i;
+			$global_optimal_tasks = $i;
+			$global_optimal_resources = $optimal_resources;
 		}
 		if(defined $OPT{"show_optimals"}){
-			print "$i $optimal_tasks $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
+			print "$i $optimal_resources $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
 		}	
 	}
 	
