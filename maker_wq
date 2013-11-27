@@ -853,7 +853,7 @@ sub process_completed_tasks {
 }
 
 sub get_sw_depedency_size {
-	my($tier) = @_;
+	my $tier = 0; #all tiers have the same sw dependency, so just use tier 0.
 	my $tierFile = $tier."_todo.tier";
 	my $tier_ds = ${retrieve($tierFile)}; #$tier_ds holds all the information for task 
 
@@ -969,7 +969,7 @@ sub estimate_runtime {
 	my $optimal_time = -1;
 
 	my $data_unique = get_contigs_size($start_tier, $num_tiers); 
-	my $data_common = get_sw_depedency_size(0); #common data transferred to each resource & cached
+	my $data_common = get_sw_depedency_size(); #common data transferred to each resource & cached
 
 	my $contigs_size = $data_unique;
 			
