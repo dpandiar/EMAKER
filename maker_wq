@@ -10,8 +10,7 @@ use lib "$FindBin::Bin/../perl/lib";
 
 my $start_time = time; 
 
-my $partition_time = 0; 
-my $parallel_time = 0; 
+my $actual_transfer_time = 0;
 
 #Default values for model
 my $partition_overhead_coeff = 0.00005;
@@ -160,6 +159,8 @@ Work Queue Options
      -show-estimates       Print the estimated runtimes for all possible task sizes for the given size of resources and exit.
 	 
      -show-optimals        Print the optimal size of resources and tasks for operating on the inputs and exit.
+     
+     -tasktimes <filename> Record the individual task execution times in this file (default = off)
 ";
 
 #------------------------------------ MAIN -------------------------------------
@@ -196,7 +197,8 @@ try{
  	       "reuse-tiers" => \$OPT{reuse_tiers},
  	       "sample" => \$OPT{sample},
  	       "samplesize=i" => \$OPT{sample_tasks},
- 	       "estimate-gran=i" => \$OPT{estimate_granularity}
+ 	       "estimate-gran=i" => \$OPT{estimate_granularity},
+ 	       "tasktimes=s" => \$OPT{tasktimes_file}
 	       );
 
 } catch Error::Simple with{
@@ -322,6 +324,9 @@ sub main {
 	my $start_tier = 0;
 	my $tiers_annotated = 0;
 	my $total_tiers_annotated = 0;
+
+	my $partition_time_start;
+	my $actual_partition_time = 0;
 	
 	if(defined $OPT{"show_optimals"}){
 		get_global_optimal_runtimes();
@@ -347,8 +352,10 @@ sub main {
 		}
 		print time." :: Sample size is $sample_size, sample tasks is $sample_tasks.\n";
 		
+		$partition_time_start = time;
 		#submit 1 sample task	
 		submit_annotation_tasks($wq, 0, ceil($sample_size/$sample_tasks), $sample_tasks);
+		$actual_partition_time += time - $partition_time_start;
 		
 		$tiers_annotated = $sample_size;
 		$start_tier += $tiers_annotated;
@@ -367,7 +374,9 @@ sub main {
 		if($tasks_to_submit > ceil($tiers_to_annotate/$tiers_per_task)) {
 			$tasks_to_submit = ceil($tiers_to_annotate/$tiers_per_task);
 		}
+		$partition_time_start = time;
 		submit_annotation_tasks($wq, $start_tier, $tiers_per_task, $tasks_to_submit);
+		$actual_partition_time += time - $partition_time_start;
 		
 		$tiers_annotated = $tiers_per_task * $tasks_to_submit;
 		$start_tier += $tiers_annotated;
@@ -383,8 +392,7 @@ sub main {
 	print "\n".time." :: Tiers annotated :: $total_tiers_annotated in total \n";
 
 	my $total_time = time - $start_time;
-	print time." :: Timing totals: total time: $total_time\n";
-	#print time." :: Timing totals: total time: $total_time, partition_time: $partition_time, parallel execution time: $parallel_time\n";
+	print time." :: Timing totals: total time: $total_time, partition_time: $actual_partition_time, transfer_time: $actual_transfer_time\n";
 	
 	exit(0);
 }
@@ -516,7 +524,7 @@ sub submit_annotation_tasks {
 		$submit_task_end = time; 
 		$submit_task_time = $submit_task_end - $submit_task_start;	
 		print time." :: Submit task time is $submit_task_time.\n";
-		#$partition_overhead_coeff = $submit_task_time/$submitted_tasks;
+		$partition_overhead_coeff = $submit_task_time/$submitted_tasks;
 		#print time." :: Measured partition overhead coefficient is $partition_overhead_coeff.\n";
 	}
 
@@ -832,6 +840,12 @@ sub process_completed_tasks {
 	#somewhere MAKER launches "maintain.pl" which becomes a zombie script, it needs to be reaped before WQ wait. 
 	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
 
+	my $tasktimes_fh;
+	if(defined($OPT{"tasktimes_file"})) {
+		my $tasktimes_file = $OPT{"tasktimes_file"}; 
+		open $tasktimes_fh, ">>$tasktimes_file"; 
+	}
+	
 	my $retrieved_tasks = 0;
 	while ($retrieved_tasks < $tasks_to_retrieve) {
 		my $t = work_queue::work_queue_wait($wq, $timeout); 
@@ -839,11 +853,15 @@ sub process_completed_tasks {
 			$retrieved_tasks++;
 			my $counter = $t->{tag}; 
 
-			if($run_timing_code == 1) {
-				$total_transfered_bytes += $t->{total_bytes_transferred};
-				$total_transfer_time += $t->{total_transfer_time};
-			}
+			$total_transfer_time += $t->{total_transfer_time};
+			$total_transfered_bytes += $t->{total_bytes_transferred};
 			$task_execution_times += $t->{cmd_execution_time}/1000000;
+			
+			if(defined($OPT{"tasktimes_file"})) {
+				my $taskid = $t->{taskid};
+				my $cmd_execution_time = $t->{cmd_execution_time};
+				print $tasktimes_fh "$taskid $cmd_execution_time\n";	
+			}
 
 			#Check if return status indicates failure
 			my $output = $t->{output}; 
@@ -872,7 +890,13 @@ sub process_completed_tasks {
 		$bandwidth_bytes_per_sec = $total_transfered_bytes / ($total_transfer_time / 1000000);
 		print time." :: Measured bandwidth is $bandwidth_bytes_per_sec.\n";
 	}
+	
+	$actual_transfer_time += $total_transfer_time;
 
+	if(defined($OPT{"tasktimes_file"})) {
+		close $tasktimes_fh;
+	}	
+	
 	return $task_execution_times;
 }
 
