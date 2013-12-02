@@ -140,7 +140,7 @@ Work Queue Options
 
      -N <project>          Sets the project name to <project>.
 
-     -r <intr>             Specify the number of resources that will be provisioned (default: $resources). 
+     -resources <int>      Specify the number of resources that will be provisioned (default: $resources). 
 	 
      -tasks <int>          Sets the number of tasks to use for annotating the tiers (default: $tasks). 
      
@@ -189,7 +189,7 @@ try{
 	       "fa=i" => \$OPT{fast_abort},
 	       "N=s" => \$OPT{project},
 	       "d=s" => \$OPT{debug},
- 	       "r=i" => \$OPT{resources},
+ 	       "resources=i" => \$OPT{resources},
  	       "tasks=i" => \$OPT{tasks},
  	       "bw=i" => \$OPT{bw},
  	       "show-estimates" => \$OPT{show_estimates},
