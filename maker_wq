@@ -877,7 +877,7 @@ sub process_completed_tasks {
 				work_queue::work_queue_task_delete($t);
 			} else { #tier resubmission on failure 
 				$task_failures{$counter} += 1; 
-				if($task_failures{$counter} < 5){
+				if($task_failures{$counter} <= 3){
 					print time." :: Failed, resubmitting WQ task with starting tier $counter\n";
 					work_queue::work_queue_submit($wq, $t);
 				} else{
