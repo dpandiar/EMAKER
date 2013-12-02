@@ -392,7 +392,9 @@ sub main {
 	print "\n".time." :: Tiers annotated :: $total_tiers_annotated in total \n";
 
 	my $total_time = time - $start_time;
-	print time." :: Timing totals: total time: $total_time, partition_time: $actual_partition_time, transfer_time: $actual_transfer_time\n";
+	print "Partition_time: $actual_partition_time\n";
+	print "Transfer_time: $actual_transfer_time\n";
+	print "Total time: $total_time\n";
 	
 	exit(0);
 }
