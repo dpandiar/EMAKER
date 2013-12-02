@@ -23,7 +23,7 @@ my $sample_env = 0;
 my $sample_tasks = 2;
 
 my $resources = 20;
-my $tasks = 20;
+my $tasks = 0;
 	
 my $common_dependency_size = 0; 
 
@@ -142,7 +142,7 @@ Work Queue Options
 
      -resources <int>      Specify the number of resources that will be provisioned (default: $resources). 
 	 
-     -tasks <int>          Sets the number of tasks to use for annotating the tiers (default: $tasks). 
+     -tasks <int>          Sets the number of tasks to use for annotating the tiers (default: automatic). 
      
      -d <level>            Sets the debug flag for Work Queue. For all debugging output, try 'all'.
 	 
@@ -366,19 +366,23 @@ sub main {
 		$run_timing_code = 0;
 	}
 
+	my $optimal_tasks = $tasks;
+	my $optimal_tasks_to_submit = $optimal_tasks;
 	while($total_tiers_annotated < $total_tiers) {
-		my $tasks_to_submit = $tasks; #get_tasks_to_submit($wq);
-		print time." :: Total number of tasks is $tasks_to_submit\n";
+		if($optimal_tasks == 0) {
+			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasksize($start_tier, $tiers_to_annotate);
+		}	
+		print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks\n";
 		
 		$partition_time_start = time;
-		$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $tasks_to_submit, $tasks_to_submit);
+		$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $optimal_tasks, $optimal_tasks_to_submit);
 		$actual_partition_time += time - $partition_time_start;
 		
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $tiers_annotated;
 		
-		process_completed_tasks($wq, $tasks_to_submit, 5);	
+		process_completed_tasks($wq, $optimal_tasks_to_submit, 5);	
 	}
 
 	remove_tier_files();
@@ -473,17 +477,6 @@ sub setup_workqueue {
 	}
 	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
 	return $wq;
-}
-
-sub get_tasks_to_submit {
-	my ($wq) = @_;
-	my $tasks_to_submit = work_queue::work_queue_hungry($wq);
-		
-	if($tasks_to_submit <= 0) { 
-		$tasks_to_submit = 10;
-	}
-
-	return $tasks_to_submit;
 }
 
 sub submit_annotation_tasks {
@@ -1079,6 +1072,8 @@ sub get_optimal_runtimes_for_tasksize {
 }
 
 sub get_optimal_tasksize {
+	my($start_tier, $num_tiers) = @_; 
+	
 	my $global_optimal_time = -1;
 	my $global_optimal_partition_time;
 	my $global_optimal_parallel_time;
@@ -1087,8 +1082,8 @@ sub get_optimal_tasksize {
 	my $global_optimal_resources;
 	
 	my $tasks = 1;	
-	while ($tasks <= $total_tiers) { 
-		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, 0, $total_tiers);
+	while ($tasks <= $num_tiers) { 
+		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, $start_tier, $num_tiers);
 		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
 			$global_optimal_time = $optimal_runtime;
 			$global_optimal_partition_time = $optimal_partition_time;
@@ -1105,7 +1100,8 @@ sub get_optimal_tasksize {
 		}
 	}
 
-	return ($global_optimal_tasks, $global_optimal_resources, $global_optimal_time, $global_optimal_partition_time, $global_optimal_parallel_time, $global_optimal_transfer_time);
+	return ($global_optimal_tasks, $global_optimal_resources);
+	#return ($global_optimal_tasks, $global_optimal_resources, $global_optimal_time, $global_optimal_partition_time, $global_optimal_parallel_time, $global_optimal_transfer_time);
 }
 
 sub print_global_optimal_runtimes {
