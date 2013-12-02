@@ -23,7 +23,7 @@ my $sample_env = 0;
 my $sample_tasks = 2;
 
 my $resources = 20;
-my $tiers_per_task = 5;
+my $tasks = 20;
 	
 my $common_dependency_size = 0; 
 
@@ -142,7 +142,7 @@ Work Queue Options
 
      -r <intr>             Specify the number of resources that will be provisioned (default: $resources). 
 	 
-     -tiers-per-task <int> Sets the number of tiers per task for remote computation (default: $tiers_per_task). 
+     -tasks <int>          Sets the number of tasks to use for annotating the tiers (default: $tasks). 
      
      -d <level>            Sets the debug flag for Work Queue. For all debugging output, try 'all'.
 	 
@@ -190,7 +190,7 @@ try{
 	       "N=s" => \$OPT{project},
 	       "d=s" => \$OPT{debug},
  	       "r=i" => \$OPT{resources},
- 	       "tiers-per-task=i" => \$OPT{tiers_per_task},
+ 	       "tasks=i" => \$OPT{tasks},
  	       "bw=i" => \$OPT{bw},
  	       "show-estimates" => \$OPT{show_estimates},
  	       "show-optimals" => \$OPT{show_optimals},
@@ -272,8 +272,8 @@ if(defined($OPT{"snaphmm"})) {
 	set_snaphmm_maker_opts($OPT{"snaphmm"});
 }
 
-if(defined $OPT{"tiers_per_task"}){
-	$tiers_per_task = $OPT{"tiers_per_task"}; 
+if(defined $OPT{"tasks"}){
+	$tasks = $OPT{"tasks"}; 
 }
 
 if(defined($OPT{"bw"})) {
@@ -318,7 +318,6 @@ sub main {
 	}
 	print time." :: Total number of tiers is $total_tiers \n";
 	
-	my $total_tasks = ceil($total_tiers/$tiers_per_task);
 	my $tiers_to_annotate = $total_tiers;
 	
 	my $start_tier = 0;
@@ -334,7 +333,7 @@ sub main {
 	}
 
 	if(defined($OPT{"show_estimates"})) {
-		for(my $i = 1; $i <= $total_tasks; $i++) {
+		for(my $i = 1; $i <= $tasks; $i++) {
 			my($runtime, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($i, $i, 0, $total_tiers);
 			print "$i $runtime $partition_time $parallel_time $transfer_time\n";
 		}	
@@ -353,11 +352,10 @@ sub main {
 		print time." :: Sample size is $sample_size, sample tasks is $sample_tasks.\n";
 		
 		$partition_time_start = time;
-		#submit 1 sample task	
-		submit_annotation_tasks($wq, 0, ceil($sample_size/$sample_tasks), $sample_tasks);
+		#submit tasks for sampling 
+		$tiers_annotated = submit_annotation_tasks($wq, 0, $sample_size, $sample_tasks, $sample_tasks);
 		$actual_partition_time += time - $partition_time_start;
 		
-		$tiers_annotated = $sample_size;
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $tiers_annotated;
@@ -369,16 +367,13 @@ sub main {
 	}
 
 	while($total_tiers_annotated < $total_tiers) {
-		$tiers_per_task = get_tiers_per_task($tiers_to_annotate, $start_tier);
-		my $tasks_to_submit = get_tasks_to_submit($wq);
-		if($tasks_to_submit > ceil($tiers_to_annotate/$tiers_per_task)) {
-			$tasks_to_submit = ceil($tiers_to_annotate/$tiers_per_task);
-		}
+		my $tasks_to_submit = $tasks; #get_tasks_to_submit($wq);
+		print time." :: Total number of tasks is $tasks_to_submit\n";
+		
 		$partition_time_start = time;
-		submit_annotation_tasks($wq, $start_tier, $tiers_per_task, $tasks_to_submit);
+		$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $tasks_to_submit, $tasks_to_submit);
 		$actual_partition_time += time - $partition_time_start;
 		
-		$tiers_annotated = $tiers_per_task * $tasks_to_submit;
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $tiers_annotated;
@@ -480,12 +475,6 @@ sub setup_workqueue {
 	return $wq;
 }
 
-sub get_tiers_per_task {
-	my ($total_tiers, $start_tier) = @_;
-	#Eventually, this will use the model to find the tiers per task.
-	return $tiers_per_task;
-}
-
 sub get_tasks_to_submit {
 	my ($wq) = @_;
 	my $tasks_to_submit = work_queue::work_queue_hungry($wq);
@@ -498,39 +487,57 @@ sub get_tasks_to_submit {
 }
 
 sub submit_annotation_tasks {
-	my($wq, $start_tier, $tiers_per_task, $num_tasks) = @_;
+	my($wq, $start_tier, $num_tiers, $total_tasks, $tasks_to_submit) = @_;
 	
-	my $submitted_tasks = 0;
-	
+	my $tiers_remaining = $num_tiers;
+	my $tasks_remaining = $total_tasks;
+	my $tiers_per_task;
+
 	#Timing related variables.
 	my $submit_task_start;
 	my $submit_task_end; 
 	my $submit_task_time;
-	
+
+	if($tasks_to_submit > $total_tasks) {
+		return 0;
+	}
+
 	if($run_timing_code == 1) {
 		$submit_task_start = time; 
 	}
-	while($submitted_tasks < $num_tasks) {
-		if($start_tier > $total_tiers) {
-			last;
+	
+	while(($total_tasks-$tasks_remaining) <= $tasks_to_submit) {
+		if($start_tier >= $total_tiers) {
+		    last;
 		}
 		if ($start_tier+$tiers_per_task > $total_tiers) {
 			$tiers_per_task = $total_tiers - $start_tier;
 		}
 		
+		if($tiers_remaining % $tasks_remaining == 0) {
+			$tiers_per_task = $tiers_remaining / $tasks_remaining;
+		} else {
+			$tiers_per_task = ceil($tiers_remaining / $tasks_remaining);
+		}
+		print time." :: Chosen tiers per task is $tiers_per_task.\n";
+		
 		submit_task($wq, $start_tier, $tiers_per_task);
+		
+		$tasks_remaining--;	
+		$tiers_remaining -= $tiers_per_task;
 		$start_tier += $tiers_per_task;	
-		$submitted_tasks++;	
 	}
+	
 	if($run_timing_code == 1) {
 		$submit_task_end = time; 
 		$submit_task_time = $submit_task_end - $submit_task_start;	
+		$partition_overhead_coeff = $submit_task_time/$tasks_to_submit;
 		print time." :: Submit task time is $submit_task_time.\n";
-		$partition_overhead_coeff = $submit_task_time/$submitted_tasks;
-		#print time." :: Measured partition overhead coefficient is $partition_overhead_coeff.\n";
+		print time." :: Measured partition overhead coefficient is $partition_overhead_coeff.\n";
 	}
 
-	return $submitted_tasks; #return number of submitted tasks 
+	#return the number of tiers that were submitted for annotation.
+	return ($num_tiers-$tiers_remaining);
 }
 
 sub submit_task {
