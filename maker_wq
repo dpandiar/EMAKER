@@ -853,7 +853,7 @@ sub process_completed_tasks {
 		my $t = work_queue::work_queue_wait($wq, $timeout); 
 		if(defined($t)) {
 			$retrieved_tasks++;
-			my $counter = $t->{tag}; 
+			my $tasktag = $t->{tag}; 
 
 			$total_transfer_time += $t->{total_transfer_time};
 			$total_transfered_bytes += $t->{total_bytes_transferred};
@@ -873,15 +873,15 @@ sub process_completed_tasks {
 				$retStatus = sprintf("%d", $retStatus);
 			}
 			if($retStatus == 0 || $retStatus == 1) {
-				print time." :: Finished WQ task with starting tier $counter.\n";
+				print time." :: Finished WQ task for tiers $tasktag.\n";
 				work_queue::work_queue_task_delete($t);
 			} else { #tier resubmission on failure 
-				$task_failures{$counter} += 1; 
-				if($task_failures{$counter} <= 3){
-					print time." :: Failed, resubmitting WQ task with starting tier $counter\n";
+				$task_failures{$tasktag} += 1; 
+				if($task_failures{$tasktag} <= 3){
+					print time." :: Failed, resubmitting WQ task for tiers $tasktag\n";
 					work_queue::work_queue_submit($wq, $t);
 				} else{
-					print time." :: WQ task with starting tier $counter has failed too many times\n"; 
+					print time." :: WQ task for tiers $tasktag has failed too many times\n"; 
 					work_queue::work_queue_task_delete($t);
 				}
 			}
@@ -1027,7 +1027,7 @@ sub estimate_runtime {
 	my $contigs_size = $data_unique;
 			
 	#Model:
-	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(2*data_unique + (data_common * r))/BW_Bps]. 
+	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(total_data_unique + (data_common * r))/BW_Bps]. 
 	#T_merge is trivial since we just put each task output in a directory and say done.
 
 	my $partition_time = $partition_overhead_coeff * $tasks;
@@ -1036,9 +1036,9 @@ sub estimate_runtime {
 	
 	my $transfer_time;
 	if($resources <= $tasks) { 
-		$transfer_time = (2*$data_unique + ($data_common * $resources)) / $bandwidth_bytes_per_sec; 
+		$transfer_time = ($data_unique + ($data_common * $resources)) / $bandwidth_bytes_per_sec; 
 	} else {
-		$transfer_time = (2*$data_unique + ($data_common * $tasks)) / $bandwidth_bytes_per_sec; 
+		$transfer_time = ($data_unique + ($data_common * $tasks)) / $bandwidth_bytes_per_sec; 
 	}
 
 	my $total_execution_time = $partition_time + $parallel_time + $transfer_time;
