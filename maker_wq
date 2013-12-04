@@ -13,8 +13,9 @@ my $start_time = time;
 my $actual_transfer_time = 0;
 
 #Default values for model
-my $partition_overhead_coeff = 0.00005;
-my $per_byte_annotate_time = 0.0005;	
+my $partition_overhead_coeff_a = 0.001;
+my $partition_overhead_coeff_b = 0.1;
+my $per_byte_annotate_time = 0.001;	
 my $bandwidth_bytes_per_sec = 100*1000000/8; #100Mbps
 
 my $run_timing_code = 0;
@@ -486,19 +487,10 @@ sub submit_annotation_tasks {
 	my $tasks_remaining = $total_tasks;
 	my $tiers_per_task;
 
-	#Timing related variables.
-	my $submit_task_start;
-	my $submit_task_end; 
-	my $submit_task_time;
-
 	if($tasks_to_submit > $total_tasks) {
 		return 0;
 	}
 
-	if($run_timing_code == 1) {
-		$submit_task_start = time; 
-	}
-	
 	while(($total_tasks-$tasks_remaining) <= $tasks_to_submit) {
 		if($start_tier >= $total_tiers) {
 		    last;
@@ -521,14 +513,6 @@ sub submit_annotation_tasks {
 		$start_tier += $tiers_per_task;	
 	}
 	
-	if($run_timing_code == 1) {
-		$submit_task_end = time; 
-		$submit_task_time = $submit_task_end - $submit_task_start;	
-		$partition_overhead_coeff = $submit_task_time/$tasks_to_submit;
-		print time." :: Submit task time is $submit_task_time.\n";
-		print time." :: Measured partition overhead coefficient is $partition_overhead_coeff.\n";
-	}
-
 	#return the number of tiers that were submitted for annotation.
 	return ($num_tiers-$tiers_remaining);
 }
@@ -542,11 +526,23 @@ sub submit_task {
 	
 	my $task_command .= "find -name \"*.tar\" -exec tar --skip-old-files -x -f {} \\\;
 	                     ./maker_wq_worker";
+	
+	my $tier_overhead_start;
+	my $tier_overhead_time = 0;
+	
+	if($run_timing_code == 1) {
+		$tier_overhead_start = time; 
+	}
+
 	my $query_seqs = ""; 
 	for(my $tier_num = $start_tier; $tier_num < $start_tier+$tiers_in_task; $tier_num++) {
 		$query_seqs .= "$tier_num "; 
 	}
 	
+	if($run_timing_code == 1) {
+		$tier_overhead_time += time - $tier_overhead_start;	
+	}
+
 	print time." :: Creating WQ task for query sequence(s) $query_seqs\n";  
 	my $task = work_queue::work_queue_task_create("$task_command $query_seqs"); 
 	my $task_tag = "$start_tier" . "-" . ($start_tier+$tiers_in_task-1);
@@ -555,11 +551,22 @@ sub submit_task {
 
 	submit_env_files($task);
 	submit_input_base_files($task, $start_tier);
+	
+	if($run_timing_code == 1) {
+		$tier_overhead_start = time; 
+	}
+	
 	for(my $tier_num = $start_tier; $tier_num < ($start_tier+$tiers_in_task); $tier_num++){
 		submit_input_tier_files($task, $tier_num);
 		configure_remote_tier_annotation($tier_num);	
 		specify_output_tier_files($task, $tier_num);
 	}	
+	
+	if($run_timing_code == 1) {
+		$tier_overhead_time += time - $tier_overhead_start;	
+		$partition_overhead_coeff_b = $tier_overhead_time / $tiers_in_task;	
+	}	
+	
 	work_queue::work_queue_submit($wq, $task);
 	print time." :: Submitted task with command: $task_command for query seq: $query_seqs\n";
 
@@ -1030,7 +1037,7 @@ sub estimate_runtime {
 	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(total_data_unique + (data_common * r))/BW_Bps]. 
 	#T_merge is trivial since we just put each task output in a directory and say done.
 
-	my $partition_time = $partition_overhead_coeff * $tasks;
+	my $partition_time = ($partition_overhead_coeff_a * $tasks) + ($partition_overhead_coeff_b * $num_tiers);
 	my $total_workload_time = ($contigs_size * $per_byte_annotate_time); 
 	my $parallel_time = ($total_workload_time / $tasks) * ceil($tasks/$resources);
 	
