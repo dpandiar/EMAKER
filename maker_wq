@@ -150,6 +150,8 @@ Work Queue Options
 
      -reuse-tiers          Skip generation of tiers files and reuse the tier files present in current directory.
      
+     -workerstowait <int>  Sets the number of tasks to use for annotating the tiers (default: automatic). 
+     
      -sample               Empirically estimate the model coefficients by sampling the execution environment. 
 	 
      -samplesize <int>     Specify the number of sample partitions. (default = $sample_tasks) 
@@ -191,6 +193,7 @@ try{
 	       "d=s" => \$OPT{debug},
  	       "resources=i" => \$OPT{resources},
  	       "tasks=i" => \$OPT{tasks},
+ 	       "workerstowait=i" => \$OPT{workers_to_wait},
  	       "bw=i" => \$OPT{bw},
  	       "show-estimates" => \$OPT{show_estimates},
  	       "show-optimals" => \$OPT{show_optimals},
@@ -342,7 +345,10 @@ sub main {
 	
 	###Begin WorkQueue section
 	my $wq = setup_workqueue();
-
+	if(defined $OPT{"workers_to_wait"}){
+		work_queue::work_queue_activate_worker_waiting($wq, $OPT{"workers_to_wait"});
+	}
+	
 	if($sample_env) {
 		$run_timing_code = 1;
 		my $sample_size = ($total_tiers * 5)/100; #sample 5% of actual workload
@@ -475,7 +481,11 @@ sub setup_workqueue {
 		work_queue::work_queue_specify_master_mode($wq, 1);
 		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
+	
+	work_queue::work_queue_specify_algorithm($wq, $WORK_QUEUE_SCHEDULE_ROUND);
+	
 	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
+
 	return $wq;
 }
 
