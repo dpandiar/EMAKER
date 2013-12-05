@@ -15,7 +15,7 @@ my $actual_transfer_time = 0;
 #Default values for model
 my $partition_overhead_coeff = 0.00005;
 my $per_byte_annotate_time = 0.0005;	
-my $bandwidth_bytes_per_sec = 100*1000000/8; #100Mbps
+my $bandwidth_bytes_per_sec = 100*1000000; #100MBps
 
 my $run_timing_code = 0;
 
@@ -146,7 +146,7 @@ Work Queue Options
      
      -d <level>            Sets the debug flag for Work Queue. For all debugging output, try 'all'.
 	 
-     -bw <integer>         Sets the expected network bandwidth in Mbps.
+     -bw <integer>         Sets the expected network bandwidth in MBytes/second.
 
      -reuse-tiers          Skip generation of tiers files and reuse the tier files present in current directory.
      
@@ -280,7 +280,7 @@ if(defined $OPT{"tasks"}){
 }
 
 if(defined($OPT{"bw"})) {
-	$bandwidth_bytes_per_sec = $OPT{"bw"}*1000000/8;
+	$bandwidth_bytes_per_sec = $OPT{"bw"}*1000000;
 }
 
 if(defined($OPT{"sample_tasks"})) {
