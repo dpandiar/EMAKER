@@ -503,10 +503,6 @@ sub submit_annotation_tasks {
 		if($start_tier >= $total_tiers) {
 		    last;
 		}
-		if ($start_tier+$tiers_per_task > $total_tiers) {
-			$tiers_per_task = $total_tiers - $start_tier;
-		}
-		
 		if($tiers_remaining % $tasks_remaining == 0) {
 			$tiers_per_task = $tiers_remaining / $tasks_remaining;
 		} else {
