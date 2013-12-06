@@ -16,7 +16,7 @@ my $actual_transfer_time = 0;
 my $partition_overhead_coeff_a = 0.001;
 my $partition_overhead_coeff_b = 0.1;
 my $per_byte_annotate_time = 0.001;	
-my $bandwidth_bytes_per_sec = 100*1000000/8; #100Mbps
+my $bandwidth_bytes_per_sec = 100*1000000; #100MBps
 
 my $run_timing_code = 0;
 
@@ -147,9 +147,11 @@ Work Queue Options
      
      -d <level>            Sets the debug flag for Work Queue. For all debugging output, try 'all'.
 	 
-     -bw <integer>         Sets the expected network bandwidth in Mbps.
+     -bw <integer>         Sets the expected network bandwidth in MBytes/second.
 
      -reuse-tiers          Skip generation of tiers files and reuse the tier files present in current directory.
+     
+     -workerstowait <int>  Sets the number of tasks to use for annotating the tiers (default: automatic). 
      
      -sample               Empirically estimate the model coefficients by sampling the execution environment. 
 	 
@@ -192,6 +194,7 @@ try{
 	       "d=s" => \$OPT{debug},
  	       "resources=i" => \$OPT{resources},
  	       "tasks=i" => \$OPT{tasks},
+ 	       "workerstowait=i" => \$OPT{workers_to_wait},
  	       "bw=i" => \$OPT{bw},
  	       "show-estimates" => \$OPT{show_estimates},
  	       "show-optimals" => \$OPT{show_optimals},
@@ -278,7 +281,7 @@ if(defined $OPT{"tasks"}){
 }
 
 if(defined($OPT{"bw"})) {
-	$bandwidth_bytes_per_sec = $OPT{"bw"}*1000000/8;
+	$bandwidth_bytes_per_sec = $OPT{"bw"}*1000000;
 }
 
 if(defined($OPT{"sample_tasks"})) {
@@ -343,7 +346,10 @@ sub main {
 	
 	###Begin WorkQueue section
 	my $wq = setup_workqueue();
-
+	if(defined $OPT{"workers_to_wait"}){
+		work_queue::work_queue_activate_worker_waiting($wq, $OPT{"workers_to_wait"});
+	}
+	
 	if($sample_env) {
 		$run_timing_code = 1;
 		my $sample_size = ($total_tiers * 5)/100; #sample 5% of actual workload
@@ -476,7 +482,11 @@ sub setup_workqueue {
 		work_queue::work_queue_specify_master_mode($wq, 1);
 		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
+	
+	work_queue::work_queue_specify_algorithm($wq, $WORK_QUEUE_SCHEDULE_ROUND);
+	
 	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
+
 	return $wq;
 }
 
@@ -495,10 +505,6 @@ sub submit_annotation_tasks {
 		if($start_tier >= $total_tiers) {
 		    last;
 		}
-		if ($start_tier+$tiers_per_task > $total_tiers) {
-			$tiers_per_task = $total_tiers - $start_tier;
-		}
-		
 		if($tiers_remaining % $tasks_remaining == 0) {
 			$tiers_per_task = $tiers_remaining / $tasks_remaining;
 		} else {
