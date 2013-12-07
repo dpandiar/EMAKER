@@ -343,8 +343,10 @@ sub main {
 		}	
 		exit(0);	
 	}
-	
+
 	###Begin WorkQueue section
+	my $wq_start_time = time; 
+	
 	my $wq = setup_workqueue();
 	if(defined $OPT{"workers_to_wait"}){
 		work_queue::work_queue_activate_worker_waiting($wq, $OPT{"workers_to_wait"});
@@ -397,9 +399,11 @@ sub main {
 
 	print "\n".time." :: Tiers annotated :: $total_tiers_annotated in total \n";
 
+	my $wq_total_time = time - $wq_start_time;
 	my $total_time = time - $start_time;
 	print "Partition_time: $actual_partition_time\n";
 	print "Transfer_time: $actual_transfer_time\n";
+	print "WQ Total time: $wq_total_time\n";
 	print "Total time: $total_time\n";
 	
 	exit(0);
