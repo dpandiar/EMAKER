@@ -163,7 +163,9 @@ Work Queue Options
 	 
      -show-optimals        Print the optimal size of resources and tasks for operating on the inputs and exit.
      
-     -tasktimes <filename> Record the individual task execution times in this file (default = off)
+     -tasktimes <file>     Record the individual task execution times in this file (default = off)
+     
+     -taskoverheads <file> Record the individual task execution times in this file (default = off)
 ";
 
 #------------------------------------ MAIN -------------------------------------
@@ -202,7 +204,8 @@ try{
  	       "sample" => \$OPT{sample},
  	       "samplesize=i" => \$OPT{sample_tasks},
  	       "estimate-gran=i" => \$OPT{estimate_granularity},
- 	       "tasktimes=s" => \$OPT{tasktimes_file}
+ 	       "tasktimes=s" => \$OPT{tasktimes_file},
+ 	       "taskoverheads=s" => \$OPT{taskoverheads_file}
 	       );
 
 } catch Error::Simple with{
@@ -864,7 +867,13 @@ sub process_completed_tasks {
 		my $tasktimes_file = $OPT{"tasktimes_file"}; 
 		open $tasktimes_fh, ">>$tasktimes_file"; 
 	}
-	
+
+	my $taskoverheads_fh;
+	if(defined($OPT{"taskoverheads_file"})) {
+		my $taskoverheads_file = $OPT{"taskoverheads_file"}; 
+		open $taskoverheads_fh, ">>$taskoverheads_file"; 
+	}	
+
 	my $retrieved_tasks = 0;
 	while ($retrieved_tasks < $tasks_to_retrieve) {
 		my $t = work_queue::work_queue_wait($wq, $timeout); 
@@ -881,7 +890,20 @@ sub process_completed_tasks {
 				my $cmd_execution_time = $t->{cmd_execution_time};
 				print $tasktimes_fh "$taskid $cmd_execution_time\n";	
 			}
-
+			
+			if(defined($OPT{"taskoverheads_file"})) {
+				my $taskid = $t->{taskid};
+				my $input_start = $t->{time_send_input_start};
+				my $input_end = $t->{time_send_input_finish};
+				my $exec_start = $t->{time_execute_cmd_start};
+				my $exec_end = $t->{time_execute_cmd_finish};
+				my $result_start = $t->{time_receive_result_start};
+				my $result_end = $t->{time_receive_result_finish};
+				my $output_start = $t->{time_receive_output_start};
+				my $output_end = $t->{time_receive_output_finish};
+				print $taskoverheads_fh "$taskid $input_start $input_end $exec_start $exec_end $result_start $result_end $output_start $output_end\n";	
+			}
+			
 			#Check if return status indicates failure
 			my $output = $t->{output}; 
 			my $retStatus = index($output, "EXIT:");
@@ -914,6 +936,9 @@ sub process_completed_tasks {
 
 	if(defined($OPT{"tasktimes_file"})) {
 		close $tasktimes_fh;
+	}	
+	if(defined($OPT{"taskoverheads_file"})) {
+		close $taskoverheads_fh;
 	}	
 	
 	return $task_execution_times;
