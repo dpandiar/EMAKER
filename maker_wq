@@ -21,7 +21,7 @@ my $bandwidth_bytes_per_sec = 100*1000000; #100MBps
 my $run_timing_code = 0;
 
 my $sample_env = 0;
-my $sample_tasks = 2;
+my $sample_tasks = 1;
 
 my $resources = 20;
 my $tasks = 0;
@@ -357,7 +357,7 @@ sub main {
 	
 	if($sample_env) {
 		$run_timing_code = 1;
-		my $sample_size = ($total_tiers * 5)/100; #sample 5% of actual workload
+		my $sample_size = ($total_tiers * 1)/100; #sample 1% of actual workload
 		if($sample_size < 1) {
 			$sample_size = 4;
 		}
@@ -379,10 +379,10 @@ sub main {
 	}
 
 	my $optimal_tasks = $tasks;
-	my $optimal_tasks_to_submit = $optimal_tasks;
+	my $optimal_tasks_to_submit = $tasks;
 	while($total_tiers_annotated < $total_tiers) {
 		if($optimal_tasks == 0) {
-			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasksize($start_tier, $tiers_to_annotate);
+			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate);
 		}	
 		print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks\n";
 		
@@ -537,7 +537,7 @@ sub submit_task {
 		exit(0);
 	}
 	
-	my $task_command .= "find -name \"*.tar\" -exec tar --skip-old-files -x -f {} \\\;
+	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
 	                     ./maker_wq_worker";
 	
 	my $tier_overhead_start;
@@ -1067,7 +1067,8 @@ sub estimate_runtime {
 	
 	my $data_unique = get_contigs_size($start_tier, $num_tiers); 
 	my $contigs_size = $data_unique;
-			
+	#print "Unique data: $data_unique, Commond Data: $data_common\n";
+	
 	#Model:
 	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(total_data_unique + (data_common * r))/BW_Bps]. 
 	#T_merge is trivial since we just put each task output in a directory and say done.
@@ -1113,7 +1114,7 @@ sub get_optimal_runtimes_for_tasksize {
 	return ($optimal_time, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources);
 }
 
-sub get_optimal_tasksize {
+sub get_optimal_tasks {
 	my($start_tier, $num_tiers) = @_; 
 	
 	my $global_optimal_time = -1;
