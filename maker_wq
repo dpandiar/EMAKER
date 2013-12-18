@@ -382,9 +382,9 @@ sub main {
 	my $optimal_tasks_to_submit = $tasks;
 	while($total_tiers_annotated < $total_tiers) {
 		if($optimal_tasks == 0) {
-			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate);
+			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, 1);
 		}	
-		print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks\n";
+		print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 		
 		$partition_time_start = time;
 		$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $optimal_tasks, $optimal_tasks_to_submit);
@@ -1115,7 +1115,7 @@ sub get_optimal_runtimes_for_tasksize {
 }
 
 sub get_optimal_tasks {
-	my($start_tier, $num_tiers) = @_; 
+	my($start_tier, $num_tiers, $equal_resources) = @_; 
 	
 	my $global_optimal_time = -1;
 	my $global_optimal_partition_time;
@@ -1123,10 +1123,21 @@ sub get_optimal_tasks {
 	my $global_optimal_transfer_time;
 	my $global_optimal_tasks;
 	my $global_optimal_resources;
+
+	my $optimal_runtime;
+	my $optimal_partition_time;
+	my $optimal_parallel_time;
+	my $optimal_transfer_time;
+	my $optimal_resources;
 	
 	my $tasks = 1;	
 	while ($tasks <= $num_tiers) { 
-		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, $start_tier, $num_tiers);
+		if ($equal_resources == 1) {
+			($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = estimate_runtime($tasks, $tasks, $start_tier, $num_tiers);
+			$optimal_resources = $tasks;	
+		} else {	
+			($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, $start_tier, $num_tiers);
+		}	
 		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
 			$global_optimal_time = $optimal_runtime;
 			$global_optimal_partition_time = $optimal_partition_time;
