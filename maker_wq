@@ -333,7 +333,10 @@ sub main {
 
 	my $partition_time_start;
 	my $actual_partition_time = 0;
-	
+
+	#get the size of the software dependencies to transfer	
+	$common_dependency_size = get_sw_depedency_size();
+ 
 	if(defined $OPT{"show_optimals"}){
 		print_global_optimal_runtimes();
 		exit(0);	
@@ -1040,14 +1043,10 @@ sub estimate_runtime {
 	
 	my $optimal_time = -1;
 
-	if ($common_dependency_size <= 0) {	
-		$common_dependency_size = get_sw_depedency_size(); #common data transferred to each resource & cached
-	}
 	my $data_common = $common_dependency_size; 
 	
 	my $data_unique = get_contigs_size($start_tier, $num_tiers); 
 	my $contigs_size = $data_unique;
-	#print "Unique data: $data_unique, Commond Data: $data_common\n";
 	
 	#Model:
 	#T(n,k,r) = [T_part + T_merge] + [(t*n)/k * ceil(k/r)] + [(total_data_unique + (data_common * r))/BW_Bps]. 
