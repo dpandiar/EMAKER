@@ -508,7 +508,7 @@ sub submit_annotation_tasks {
 		return 0;
 	}
 
-	while(($total_tasks-$tasks_remaining) <= $tasks_to_submit) {
+	while(($total_tasks-$tasks_remaining) < $tasks_to_submit) {
 		if($start_tier >= $total_tiers) {
 		    last;
 		}
@@ -1079,9 +1079,9 @@ sub estimate_runtime {
 	
 	my $transfer_time;
 	if($resources <= $tasks) { 
-		$transfer_time = ($data_unique + ($data_common * $resources)) / $bandwidth_bytes_per_sec; 
+		$transfer_time = ((2*$data_unique) + ($data_common * $resources)) / $bandwidth_bytes_per_sec; 
 	} else {
-		$transfer_time = ($data_unique + ($data_common * $tasks)) / $bandwidth_bytes_per_sec; 
+		$transfer_time = ((2*$data_unique) + ($data_common * $tasks)) / $bandwidth_bytes_per_sec; 
 	}
 
 	my $total_execution_time = $partition_time + $parallel_time + $transfer_time;
@@ -1136,7 +1136,7 @@ sub get_optimal_tasks {
 			$global_optimal_resources = $optimal_resources;
 		}
 		
-		if($tasks == 1) {
+		if($tasks == 1 && $estimate_granularity > 1) {
 			$tasks += $estimate_granularity-1;
 		} else {
 			$tasks += $estimate_granularity;
@@ -1172,7 +1172,7 @@ sub print_global_optimal_runtimes {
 		}
 		print "$tasks $optimal_resources $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
 		
-		if($tasks == 1) {
+		if($tasks == 1 && $estimate_granularity > 1) {
 			$tasks += $estimate_granularity-1;
 		} else {
 			$tasks += $estimate_granularity;
