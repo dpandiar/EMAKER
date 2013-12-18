@@ -540,22 +540,11 @@ sub submit_task {
 	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
 	                     ./maker_wq_worker";
 	
-	my $tier_overhead_start;
-	my $tier_overhead_time = 0;
-	
-	if($run_timing_code == 1) {
-		$tier_overhead_start = time; 
-	}
-
 	my $query_seqs = ""; 
 	for(my $tier_num = $start_tier; $tier_num < $start_tier+$tiers_in_task; $tier_num++) {
 		$query_seqs .= "$tier_num "; 
 	}
 	
-	if($run_timing_code == 1) {
-		$tier_overhead_time += time - $tier_overhead_start;	
-	}
-
 	print time." :: Creating WQ task for query sequence(s) $query_seqs\n";  
 	my $task = work_queue::work_queue_task_create("$task_command $query_seqs"); 
 	my $task_tag = "$start_tier" . "-" . ($start_tier+$tiers_in_task-1);
@@ -565,19 +554,10 @@ sub submit_task {
 	submit_env_files($task);
 	submit_input_base_files($task, $start_tier);
 	
-	if($run_timing_code == 1) {
-		$tier_overhead_start = time; 
-	}
-	
 	for(my $tier_num = $start_tier; $tier_num < ($start_tier+$tiers_in_task); $tier_num++){
 		submit_input_tier_files($task, $tier_num);
 		configure_remote_tier_annotation($tier_num);	
 		specify_output_tier_files($task, $tier_num);
-	}	
-	
-	if($run_timing_code == 1) {
-		$tier_overhead_time += time - $tier_overhead_start;	
-		$partition_overhead_coeff_b = $tier_overhead_time / $tiers_in_task;	
 	}	
 	
 	work_queue::work_queue_submit($wq, $task);
@@ -1042,7 +1022,7 @@ sub get_sw_depedency_size {
 			$sw_dependency_size += -s "$v.tar";
 		}
 	}
-	
+ 	
 	return $sw_dependency_size;
 }
 
