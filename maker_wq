@@ -153,6 +153,8 @@ Work Queue Options
      
      -workerstowait <int>  Sets the number of tasks to use for annotating the tiers (default: automatic). 
      
+     -workerequivalence    Assume the number of workers to be equivalent to the number of tasks (default: off). 
+     
      -sample               Empirically estimate the model coefficients by sampling the execution environment. 
 	 
      -samplesize <int>     Specify the number of sample partitions. (default = $sample_tasks) 
@@ -197,6 +199,7 @@ try{
  	       "resources=i" => \$OPT{resources},
  	       "tasks=i" => \$OPT{tasks},
  	       "workerstowait=i" => \$OPT{workers_to_wait},
+ 	       "workerequivalence" => \$OPT{worker_equivalence},
  	       "bw=i" => \$OPT{bw},
  	       "show-estimates" => \$OPT{show_estimates},
  	       "show-optimals" => \$OPT{show_optimals},
@@ -358,6 +361,7 @@ sub main {
 		work_queue::work_queue_activate_worker_waiting($wq, $OPT{"workers_to_wait"});
 	}
 	
+	my $workers_used = 0;	
 	if($sample_env) {
 		$run_timing_code = 1;
 		my $sample_size = ($total_tiers * 1)/100; #sample 1% of actual workload
@@ -370,7 +374,8 @@ sub main {
 		#submit tasks for sampling 
 		$tiers_annotated = submit_annotation_tasks($wq, 0, $sample_size, $sample_tasks, $sample_tasks);
 		$actual_partition_time += time - $partition_time_start;
-		
+	
+		$workers_used += $sample_tasks;	 #we cached common dependencies at the used workers.
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $tiers_annotated;
@@ -385,14 +390,25 @@ sub main {
 	my $optimal_tasks_to_submit = $tasks;
 	while($total_tiers_annotated < $total_tiers) {
 		if($optimal_tasks == 0) {
-			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, 1);
+			if(defined $OPT{"worker_equivalence"}){
+				($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, $workers_used, 1);
+			} else {
+				($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, $workers_used, 0);
+			}
+		} else {
+			if(!defined $OPT{"worker_equivalence"}){
+				$optimal_tasks_to_submit = get_optimal_tasks_to_submit($tasks, $start_tier, $tiers_to_annotate, $workers_used);
+			}
 		}	
 		print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 		
 		$partition_time_start = time;
 		$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $optimal_tasks, $optimal_tasks_to_submit);
 		$actual_partition_time += time - $partition_time_start;
-		
+	
+		if($workers_used < $optimal_tasks_to_submit) {
+			$workers_used = $optimal_tasks_to_submit; #we cached common dependencies at the used workers.
+		}	
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $tiers_annotated;
@@ -1039,7 +1055,7 @@ sub get_contigs_size {
 }
 
 sub estimate_runtime {
-	my($resources, $tasks, $start_tier, $num_tiers) = @_; 
+	my($resources, $resources_used, $tasks, $start_tier, $num_tiers) = @_; 
 	
 	my $optimal_time = -1;
 
@@ -1056,12 +1072,17 @@ sub estimate_runtime {
 	my $total_workload_time = ($contigs_size * $per_byte_annotate_time); 
 	my $parallel_time = ($total_workload_time / $tasks) * ceil($tasks/$resources);
 	
-	my $transfer_time;
-	if($resources <= $tasks) { 
-		$transfer_time = ((2*$data_unique) + ($data_common * $resources)) / $bandwidth_bytes_per_sec; 
+	my $new_resources;	
+	my $resources_to_consider = $resources;
+	if($resources > $tasks) { 
+		$resources_to_consider = $tasks;	
+	}	
+	if($resources_to_consider <= $resources_used) {
+		$new_resources = 0;
 	} else {
-		$transfer_time = ((2*$data_unique) + ($data_common * $tasks)) / $bandwidth_bytes_per_sec; 
+		$new_resources = $resources_to_consider - $resources_used;
 	}
+	my $transfer_time = ((2*$data_unique) + ($data_common * $new_resources)) / $bandwidth_bytes_per_sec; 
 
 	my $total_execution_time = $partition_time + $parallel_time + $transfer_time;
 
@@ -1069,7 +1090,7 @@ sub estimate_runtime {
 }
 
 sub get_optimal_runtimes_for_tasksize {
-	my($tasks, $start_tier, $num_tiers) = @_; 
+	my($tasks, $start_tier, $num_tiers, $resources_used) = @_; 
 	
 	my $optimal_time = -1;
 	my $optimal_parallel_time = 0; 
@@ -1079,7 +1100,8 @@ sub get_optimal_runtimes_for_tasksize {
 	my $optimal_resources;
 
 	for (my $resources = 1; $resources <= $tasks; $resources++) {
-		my($total_time, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($resources, $tasks, $start_tier, $num_tiers);
+		my($total_time, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($resources, $resources_used, $tasks, $start_tier, $num_tiers);
+		print "Resources $resources, used resources $resources_used, tasks $tasks: $total_time, $partition_time, $parallel_time, $transfer_time\n";
 		if ($optimal_time < 0 || ($total_time < $optimal_time)) {
 			$optimal_time = $total_time;
 			$optimal_partition_time = $partition_time;
@@ -1094,7 +1116,7 @@ sub get_optimal_runtimes_for_tasksize {
 }
 
 sub get_optimal_tasks {
-	my($start_tier, $num_tiers, $equal_resources) = @_; 
+	my($start_tier, $num_tiers, $workers_used, $equal_resources) = @_; 
 	
 	my $global_optimal_time = -1;
 	my $global_optimal_partition_time;
@@ -1112,10 +1134,10 @@ sub get_optimal_tasks {
 	my $tasks = 1;	
 	while ($tasks <= $num_tiers) { 
 		if ($equal_resources == 1) {
-			($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = estimate_runtime($tasks, $tasks, $start_tier, $num_tiers);
+			($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = estimate_runtime($tasks, $workers_used, $tasks, $start_tier, $num_tiers);
 			$optimal_resources = $tasks;	
 		} else {	
-			($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, $start_tier, $num_tiers);
+			($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, $start_tier, $num_tiers, $workers_used);
 		}	
 		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
 			$global_optimal_time = $optimal_runtime;
@@ -1137,6 +1159,14 @@ sub get_optimal_tasks {
 	#return ($global_optimal_tasks, $global_optimal_resources, $global_optimal_time, $global_optimal_partition_time, $global_optimal_parallel_time, $global_optimal_transfer_time);
 }
 
+sub get_optimal_tasks_to_submit {
+	my($tasks, $start_tier, $num_tiers, $workers_used) = @_; 
+	
+	my ($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, $start_tier, $num_tiers, $workers_used);
+	return ($optimal_resources);
+}
+
+
 sub print_global_optimal_runtimes {
 	my $global_optimal_time = -1;
 	my $global_optimal_partition_time;
@@ -1151,7 +1181,7 @@ sub print_global_optimal_runtimes {
 
 	my $tasks = 1;	
 	while ($tasks <= $total_tiers) { 
-		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, 0, $total_tiers);
+		my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, 0, $total_tiers, 0);
 		if ($global_optimal_time < 0 || ($optimal_runtime < $global_optimal_time)) {
 			$global_optimal_time = $optimal_runtime;
 			$global_optimal_partition_time = $optimal_partition_time;
