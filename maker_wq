@@ -165,6 +165,8 @@ Work Queue Options
 	 
      -show-optimals        Print the optimal size of resources and tasks for operating on the inputs and exit.
      
+     -schedulebydata       Use WQ scheduling option that schedules tasks based on the amount of required data a worker has.
+     
      -tasktimes <file>     Record the individual task execution times in this file (default = off)
      
      -taskoverheads <file> Record the individual task execution times in this file (default = off)
@@ -207,6 +209,7 @@ try{
  	       "sample" => \$OPT{sample},
  	       "samplesize=i" => \$OPT{sample_tasks},
  	       "estimate-gran=i" => \$OPT{estimate_granularity},
+ 	       "schedulebydata" => \$OPT{schedule_by_data},
  	       "tasktimes=s" => \$OPT{tasktimes_file},
  	       "taskoverheads=s" => \$OPT{taskoverheads_file}
 	       );
@@ -518,7 +521,9 @@ sub setup_workqueue {
 		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
 	
-	work_queue::work_queue_specify_algorithm($wq, $WORK_QUEUE_SCHEDULE_ROUND);
+	if(defined($OPT{"schedule_by_data"})) {
+		work_queue::work_queue_specify_algorithm($wq, $WORK_QUEUE_SCHEDULE_FILES);
+	}
 	
 	work_queue::work_queue_specify_log($wq, "maker_wq.stats");
 
