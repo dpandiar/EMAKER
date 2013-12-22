@@ -404,7 +404,7 @@ sub main {
 	my $optimal_tasks = $tasks;
 	my $optimal_tasks_to_submit = $tasks;
 	
-	($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tiers, $tiers_to_annotate, $workers_used);	
+	($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tier, $tiers_to_annotate, $workers_used);	
 	print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 	
 	while($total_tiers_annotated < $total_tiers) {
@@ -423,7 +423,7 @@ sub main {
 		process_completed_tasks($wq, $optimal_tasks_to_submit, 5);	
 
 		if(defined $OPT{"runtime_adapt"}){
-			($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tiers, $tiers_to_annotate, $workers_used);	
+			($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tier, $tiers_to_annotate, $workers_used);	
 			print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 		}	
 	}
@@ -510,6 +510,7 @@ sub compute_submission_params {
 			$optimal_tasks_to_submit = get_optimal_tasks_to_submit($tasks, $start_tier, $tiers_to_annotate, $workers_used);
 		}
 	}
+	return ($optimal_tasks, $optimal_tasks_to_submit);	
 }
 
 sub setup_workqueue {
