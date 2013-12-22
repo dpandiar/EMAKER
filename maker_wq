@@ -419,7 +419,10 @@ sub main {
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $total_tiers_annotated;
-		
+	
+		#we need to account for the submitted batch in the optimal number of tasks computed at the beginning.	
+		$optimal_tasks -= $optimal_tasks_to_submit;
+	
 		process_completed_tasks($wq, $optimal_tasks_to_submit, 5);	
 
 		if(defined $OPT{"runtime_adapt"}){
