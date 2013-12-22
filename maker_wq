@@ -1062,7 +1062,7 @@ sub get_sw_depedency_size {
 sub get_contigs_size {
 	my($start_tier, $num_tiers) = @_;
 	my $contigs_size = 0; 
-	for (my $i = $start_tier; $i < $num_tiers; $i++) {
+	for (my $i = $start_tier; $i < ($start_tier + $num_tiers); $i++) {
 		$contigs_size += -s "$i\_todo.tier";
 	}
 	return $contigs_size;
