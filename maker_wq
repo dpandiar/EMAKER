@@ -341,7 +341,16 @@ sub main {
 	$common_dependency_size = get_sw_depedency_size();
  
 	if(defined $OPT{"show_optimals"}){
-		print_global_optimal_runtimes();
+		if($tasks == 0)	 {
+			print_global_optimal_runtimes();
+		} else {
+			my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, 0, $total_tiers, 0);
+			print "\n------------------------------------------------------------\n";
+			print "Tasks Resources Runtime Partition Task Transfer\n";
+			print "------------------------------------------------------------\n";
+
+			print "$tasks $optimal_resources $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";	
+		}	
 		exit(0);	
 	}
 
