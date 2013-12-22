@@ -420,7 +420,7 @@ sub main {
 		}	
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
-		$tiers_to_annotate = $total_tiers - $tiers_annotated;
+		$tiers_to_annotate = $total_tiers - $total_tiers_annotated;
 		
 		process_completed_tasks($wq, $optimal_tasks_to_submit, 5);	
 	}
