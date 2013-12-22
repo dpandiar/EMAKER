@@ -167,6 +167,8 @@ Work Queue Options
      
      -schedulebydata       Use WQ scheduling option that schedules tasks based on the amount of required data a worker has.
      
+     -runtimeadapt         Adapt the runtime behavior to the observed characteristics of the execution environment.
+     
      -tasktimes <file>     Record the individual task execution times in this file (default = off)
      
      -taskoverheads <file> Record the individual task execution times in this file (default = off)
@@ -210,6 +212,7 @@ try{
  	       "samplesize=i" => \$OPT{sample_tasks},
  	       "estimate-gran=i" => \$OPT{estimate_granularity},
  	       "schedulebydata" => \$OPT{schedule_by_data},
+ 	       "runtimeadapt" => \$OPT{runtime_adapt},
  	       "tasktimes=s" => \$OPT{tasktimes_file},
  	       "taskoverheads=s" => \$OPT{taskoverheads_file}
 	       );
@@ -400,19 +403,11 @@ sub main {
 
 	my $optimal_tasks = $tasks;
 	my $optimal_tasks_to_submit = $tasks;
+	
+	($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tiers, $tiers_to_annotate, $workers_used);	
+	print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
+	
 	while($total_tiers_annotated < $total_tiers) {
-		if($optimal_tasks == 0) {
-			if(defined $OPT{"worker_equivalence"}){
-				($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, $workers_used, 1);
-			} else {
-				($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, $workers_used, 0);
-			}
-		} else {
-			if(!defined $OPT{"worker_equivalence"}){
-				$optimal_tasks_to_submit = get_optimal_tasks_to_submit($tasks, $start_tier, $tiers_to_annotate, $workers_used);
-			}
-		}	
-		print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 		
 		$partition_time_start = time;
 		$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $optimal_tasks, $optimal_tasks_to_submit);
@@ -426,6 +421,11 @@ sub main {
 		$tiers_to_annotate = $total_tiers - $total_tiers_annotated;
 		
 		process_completed_tasks($wq, $optimal_tasks_to_submit, 5);	
+
+		if(defined $OPT{"runtime_adapt"}){
+			($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tiers, $tiers_to_annotate, $workers_used);	
+			print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
+		}	
 	}
 
 	remove_tier_files();
@@ -491,6 +491,25 @@ sub generate_tiers {
 		$numTiers++;
 	}
 	return $numTiers;
+}
+
+sub compute_submission_params {
+	my ($start_tier, $tiers_to_annotate, $workers_used) = @_ ;
+		
+	my $optimal_tasks;
+	my $optimal_tasks_to_submit;	
+	if($tasks == 0) {
+		if(defined $OPT{"worker_equivalence"}){
+			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, $workers_used, 1);
+		} else {
+			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, $workers_used, 0);
+		}
+	} else {
+		if(!defined $OPT{"worker_equivalence"}){
+			$optimal_tasks = $tasks;	
+			$optimal_tasks_to_submit = get_optimal_tasks_to_submit($tasks, $start_tier, $tiers_to_annotate, $workers_used);
+		}
+	}
 }
 
 sub setup_workqueue {
