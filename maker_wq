@@ -332,7 +332,7 @@ sub main {
 	if ($total_tiers <= 0) {
 		$total_tiers = generate_tiers();
 	}
-	print time." :: Total number of tiers is $total_tiers \n";
+	print localtime()." :: Total number of tiers is $total_tiers \n";
 	
 	my $tiers_to_annotate = $total_tiers;
 	
@@ -393,7 +393,7 @@ sub main {
 		if($sample_size < 1) {
 			$sample_size = 4;
 		}
-		print time." :: Sample size is $sample_size, sample tasks is $sample_tasks.\n";
+		print localtime()." :: Sample size is $sample_size, sample tasks is $sample_tasks.\n";
 		
 		$partition_time_start = time;
 		#submit tasks for sampling 
@@ -407,7 +407,7 @@ sub main {
 		
 		my $total_task_execution_time = process_completed_tasks($wq, $sample_tasks, 5);	
 		$per_byte_annotate_time = $total_task_execution_time/get_contigs_size(0, $sample_size);
-		print time." :: Measured per byte annotation time is $per_byte_annotate_time.\n";
+		print localtime()." :: Measured per byte annotation time is $per_byte_annotate_time.\n";
 		$run_timing_code = 0;
 	}
 
@@ -415,9 +415,10 @@ sub main {
 	my $optimal_tasks_to_submit = $tasks;
 	
 	($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tier, $tiers_to_annotate, $workers_used);	
-	print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
+	print localtime()." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 	
 	while($total_tiers_annotated < $total_tiers) {
+		print localtime()." :: $optimal_tasks tasks remain. Submitting $optimal_tasks_to_submit tasks.\n";
 		
 		$partition_time_start = time;
 		$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $optimal_tasks, $optimal_tasks_to_submit);
@@ -440,14 +441,14 @@ sub main {
 
 		if(defined $OPT{"runtime_adapt"}){
 			($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tier, $tiers_to_annotate, $workers_used);	
-			print time." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
+			print localtime()." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 		}	
 	}
 
 	remove_tier_files();
 	delete_workqueue($wq);
 
-	print "\n".time." :: Tiers annotated :: $total_tiers_annotated in total \n";
+	print "\n".localtime()." :: Tiers annotated :: $total_tiers_annotated in total \n";
 
 	my $wq_total_time = time - $wq_start_time;
 	my $total_time = time - $start_time;
@@ -547,7 +548,7 @@ sub create_task_setup_script {
 sub setup_workqueue {
 	if(defined($OPT{"debug"})){
 		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
-		print time." :: Work Queue debug flags set.\n";
+		print localtime()." :: Work Queue debug flags set.\n";
 	}
 
 	my $port = "9155";
@@ -556,7 +557,7 @@ sub setup_workqueue {
 	} 
 	my $wq = work_queue::work_queue_create($port);
 	if(defined($wq)) {
-		print time." :: Work Queue listening on port $port.\n";
+		print localtime()." :: Work Queue listening on port $port.\n";
 	} else {
 		print STDERR "Failed to create Work Queue on port $port.\n"; 
 		exit(0);
@@ -564,12 +565,12 @@ sub setup_workqueue {
 	if(defined($OPT{"fast_abort"})) {
 		my $multiplier = $OPT{"fast_abort"}; 
 		my $fa = work_queue::work_queue_activate_fast_abort($wq, $multiplier); 
-		print time." :: Work Queue fast abort set to $multiplier.\n";
+		print localtime()." :: Work Queue fast abort set to $multiplier.\n";
 	}
 	if(defined($OPT{"project"})) {
 		work_queue::work_queue_specify_name($wq, $OPT{"project"});
 		work_queue::work_queue_specify_master_mode($wq, 1);
-		print time." :: Work Queue project name set to $OPT{\"project\"}.\n";
+		print localtime()." :: Work Queue project name set to $OPT{\"project\"}.\n";
 	}
 	
 	if(defined($OPT{"schedule_by_data"})) {
@@ -606,7 +607,7 @@ sub submit_annotation_tasks {
 		if ($start_tier + $tiers_per_task > $total_tiers) {
 			$tiers_per_task = $total_tiers - $start_tier;
 		}	
-		print time." :: Chosen tiers per task is $tiers_per_task.\n";
+		print localtime()." :: Chosen tiers per task is $tiers_per_task.\n";
 		
 		submit_task($wq, $start_tier, $tiers_per_task);
 		
@@ -633,10 +634,10 @@ sub submit_task {
 		$query_seqs .= "$tier_num "; 
 	}
 	
-	print time." :: Creating WQ task for query sequence(s) $query_seqs\n";  
+	print localtime()." :: Creating WQ task for query sequence(s) $query_seqs\n";  
 	my $task = work_queue::work_queue_task_create("$task_command $query_seqs"); 
 	my $task_tag = "$start_tier" . "-" . ($start_tier+$tiers_in_task-1);
-	print time." :: Assigning tag $task_tag to task created for query sequence(s) $query_seqs\n";  
+	print localtime()." :: Assigning tag $task_tag to task created for query sequence(s) $query_seqs\n";  
 	work_queue::work_queue_task_specify_tag($task, $task_tag); 
 	
 	work_queue::work_queue_task_specify_file($task, "task_env_setup.sh", "task_env_setup.sh", 0, 1);
@@ -650,8 +651,8 @@ sub submit_task {
 		specify_output_tier_files($task, $tier_num);
 	}	
 	
-	work_queue::work_queue_submit($wq, $task);
-	print time." :: Submitted task with command: $task_command for query seq: $query_seqs\n";
+	my $taskid = work_queue::work_queue_submit($wq, $task);
+	print localtime()." :: Submitted task $taskid with command: $task_command for query seq: $query_seqs\n";
 
 	return 1;
 }
@@ -987,15 +988,15 @@ sub process_completed_tasks {
 				$retStatus = sprintf("%d", $retStatus);
 			}
 			if($retStatus == 0 || $retStatus == 1) {
-				print time." :: Finished WQ task for tiers $tasktag.\n";
+				print localtime()." :: Finished WQ task for tiers $tasktag.\n";
 				work_queue::work_queue_task_delete($t);
 			} else { #tier resubmission on failure 
 				$task_failures{$tasktag} += 1; 
 				if($task_failures{$tasktag} <= 3){
-					print time." :: Failed, resubmitting WQ task for tiers $tasktag\n";
+					print localtime()." :: Failed, resubmitting WQ task for tiers $tasktag\n";
 					work_queue::work_queue_submit($wq, $t);
 				} else{
-					print time." :: WQ task for tiers $tasktag has failed too many times\n"; 
+					print localtime()." :: WQ task for tiers $tasktag has failed too many times\n"; 
 					work_queue::work_queue_task_delete($t);
 				}
 			}
@@ -1004,7 +1005,7 @@ sub process_completed_tasks {
 	
 	if($run_timing_code == 1) {
 		$bandwidth_bytes_per_sec = $total_transfered_bytes / ($total_transfer_time / 1000000);
-		print time." :: Measured bandwidth is $bandwidth_bytes_per_sec.\n";
+		print localtime()." :: Measured bandwidth is $bandwidth_bytes_per_sec.\n";
 	}
 	
 	$actual_transfer_time += $total_transfer_time;
@@ -1203,7 +1204,7 @@ sub get_optimal_runtimes_for_tasksize {
 
 	for (my $resources = 1; $resources <= $tasks; $resources++) {
 		my($total_time, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($resources, $resources_used, $tasks, $start_tier, $num_tiers);
-		print "Resources $resources, used resources $resources_used, tasks $tasks: $total_time, $partition_time, $parallel_time, $transfer_time\n";
+		#print "Resources $resources, used resources $resources_used, tasks $tasks: $total_time, $partition_time, $parallel_time, $transfer_time\n";
 		if ($optimal_time < 0 || ($total_time < $optimal_time)) {
 			$optimal_time = $total_time;
 			$optimal_partition_time = $partition_time;
