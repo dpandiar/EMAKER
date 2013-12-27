@@ -368,6 +368,8 @@ sub main {
 		exit(0);	
 	}
 
+	create_task_setup_script();
+
 	###Begin WorkQueue section
 	my $wq_start_time = time; 
 	
@@ -516,6 +518,21 @@ sub compute_submission_params {
 	return ($optimal_tasks, $optimal_tasks_to_submit);	
 }
 
+sub create_task_setup_script {
+	my $task_setup_script = "task_env_setup.sh";	
+	open (my $file_h, ">", $task_setup_script); 
+	
+	print $file_h "#!/bin/sh\n\n";
+	print $file_h "if [ ! -d lib ]; then\n";
+	print $file_h "\t echo \"Running tar to extract all the input files\"\n";
+	print $file_h "\t find -maxdepth 1 -name \"*.tar\" -exec tar -x -f {} \\\;\n";
+	print $file_h "fi\n";
+	
+	close ($file_h);
+	chmod 0755, $task_setup_script;	
+	return;
+}
+
 sub setup_workqueue {
 	if(defined($OPT{"debug"})){
 		work_queue::cctools_debug_flags_set($OPT{"debug"}); 
@@ -598,8 +615,7 @@ sub submit_task {
 		exit(0);
 	}
 	
-	my $task_command .= "find -name \"*.tar\" -exec tar -x -f {} \\\;
-	                     ./maker_wq_worker";
+	my $task_command .= "time ./task_env_setup.sh; time ./maker_wq_worker";
 	
 	my $query_seqs = ""; 
 	for(my $tier_num = $start_tier; $tier_num < $start_tier+$tiers_in_task; $tier_num++) {
@@ -611,6 +627,8 @@ sub submit_task {
 	my $task_tag = "$start_tier" . "-" . ($start_tier+$tiers_in_task-1);
 	print time." :: Assigning tag $task_tag to task created for query sequence(s) $query_seqs\n";  
 	work_queue::work_queue_task_specify_tag($task, $task_tag); 
+	
+	work_queue::work_queue_task_specify_file($task, "task_env_setup.sh", "task_env_setup.sh", 0, 1);
 
 	submit_env_files($task);
 	submit_input_base_files($task, $start_tier);
