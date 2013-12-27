@@ -972,7 +972,12 @@ sub process_completed_tasks {
 			}
 			
 			#Check if return status indicates failure
-			my $output = $t->{output}; 
+			my $output = $t->{output};
+			open (task_outfile, '>>task_outputs.txt'); 
+			print task_outfile "$output\n";
+			print task_outfile "=================================\n\n";
+			close (task_outfile);
+			
 			my $retStatus = index($output, "EXIT:");
 			if ($retStatus != -1) {
 				$retStatus = substr($output, $retStatus+5, 2);
