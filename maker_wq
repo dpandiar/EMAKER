@@ -23,7 +23,7 @@ my $run_timing_code = 0;
 my $sample_env = 0;
 my $sample_tasks = 1;
 
-my $resources = 20;
+my $resources = 0;
 my $tasks = 0;
 	
 my $common_dependency_size = 0; 
@@ -347,9 +347,17 @@ sub main {
 	$common_dependency_size = get_sw_depedency_size();
  
 	if(defined $OPT{"show_optimals"}){
-		if($tasks == 0)	 {
+		if($tasks == 0 && $resources == 0)	 {
 			print_global_optimal_runtimes();
-		} else {
+		} elsif ($resources > 0) {
+			my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tasks) = get_optimal_runtimes_for_workers($resources, 0, $total_tiers, 0); 
+			print "\n------------------------------------------------------------\n";
+			print "Tasks Resources Runtime Partition Task Transfer\n";
+			print "------------------------------------------------------------\n";
+
+			print "$optimal_tasks $resources $optimal_runtime $optimal_partition_time $optimal_parallel_time $optimal_transfer_time\n";
+		} 
+		else {
 			my($optimal_runtime, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_resources) = get_optimal_runtimes_for_tasksize($tasks, 0, $total_tiers, 0);
 			print "\n------------------------------------------------------------\n";
 			print "Tasks Resources Runtime Partition Task Transfer\n";
@@ -1147,6 +1155,32 @@ sub estimate_runtime {
 	my $total_execution_time = $partition_time + $parallel_time + $transfer_time;
 
 	return ($total_execution_time, $partition_time, $parallel_time, $transfer_time);
+}
+
+sub get_optimal_runtimes_for_workers {
+	my($resources, $start_tier, $num_tiers, $resources_used) = @_; 
+	
+	my $optimal_time = -1;
+	my $optimal_parallel_time = 0; 
+	my $optimal_partition_time = 0; 
+	my $optimal_transfer_time = 0; 
+	
+	my $optimal_tasks;
+
+	for (my $tasks = 1; $tasks <= $total_tiers; $tasks++) {
+		my($total_time, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($resources, $resources_used, $tasks, $start_tier, $num_tiers);
+		#print "Resources $resources, used resources $resources_used, tasks $tasks: $total_time, $partition_time, $parallel_time, $transfer_time\n";
+		if ($optimal_time < 0 || ($total_time < $optimal_time)) {
+			$optimal_time = $total_time;
+			$optimal_partition_time = $partition_time;
+			$optimal_parallel_time = $parallel_time;
+			$optimal_transfer_time = $transfer_time;
+			$optimal_tasks = $tasks; 
+		} 	
+	} 	
+	
+	#print "Total transfer time is $transfer_overhead and optimal task size is $optimal_tasks\n";		
+	return ($optimal_time, $optimal_partition_time, $optimal_parallel_time, $optimal_transfer_time, $optimal_tasks);
 }
 
 sub get_optimal_runtimes_for_tasksize {
