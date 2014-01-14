@@ -18,6 +18,8 @@ my $partition_overhead_coeff_b = 0.0005;
 my $per_byte_annotate_time = 0.00444; #0.003;	
 my $bandwidth_bytes_per_sec = 100*1000000; #100MBps
 
+my $tolerable_task_failures = 1;
+
 my $run_timing_code = 0;
 
 my $sample_env = 0;
@@ -167,11 +169,13 @@ Work Queue Options
      
      -schedulebydata       Use WQ scheduling option that schedules tasks based on the amount of required data a worker has.
      
-     -runtimeadapt         Adapt the runtime behavior to the observed characteristics of the execution environment.
-     
      -tasktimes <file>     Record the individual task execution times in this file (default = off)
      
      -taskoverheads <file> Record the individual task execution times in this file (default = off)
+     
+     -adapttobw            Measure BW during task submission and adapt the number of tasks and resources used according to BW.
+     
+     -tcc                  Setup TCC configuration for bandwidth adaptations.
 ";
 
 #------------------------------------ MAIN -------------------------------------
@@ -212,7 +216,8 @@ try{
  	       "samplesize=i" => \$OPT{sample_tasks},
  	       "estimate-gran=i" => \$OPT{estimate_granularity},
  	       "schedulebydata" => \$OPT{schedule_by_data},
- 	       "runtimeadapt" => \$OPT{runtime_adapt},
+ 	       "adapttobw" => \$OPT{adapt_to_bw},
+ 	       "tcc" => \$OPT{tcc},
  	       "tasktimes=s" => \$OPT{tasktimes_file},
  	       "taskoverheads=s" => \$OPT{taskoverheads_file}
 	       );
@@ -386,6 +391,10 @@ sub main {
 		work_queue::work_queue_activate_worker_waiting($wq, $OPT{"workers_to_wait"});
 	}
 	
+	if(defined($OPT{"tcc"})) {
+		tcc_adaptation_setup($wq, 0);
+	}
+
 	my $workers_used = 0;	
 	if($sample_env) {
 		$run_timing_code = 1;
@@ -438,10 +447,9 @@ sub main {
 		if($optimal_tasks < $optimal_tasks_to_submit) {
 			$optimal_tasks_to_submit = $optimal_tasks;
 		}
-
-		if(defined $OPT{"runtime_adapt"}){
+		if(defined $OPT{"adapt_to_bw"}){
 			($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tier, $tiers_to_annotate, $workers_used);	
-			print localtime()." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
+			print localtime()." :: During Runtime: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 		}	
 	}
 
@@ -461,6 +469,29 @@ sub main {
 }
 
 #------------------------------- FUNCTION DEFINITIONS -------------------------------------
+sub tcc_adaptation_setup {
+	my($wq, $submitted_tasks) = @_;
+
+	$estimate_granularity = 4;
+		
+	if ($submitted_tasks <= 1) {
+		set_wq_bw($wq, "75M");
+		print "\n".localtime()." :: Bandwidth set to 75 MBps.\n";
+	}elsif ($submitted_tasks > 1 && $submitted_tasks <= 3) {
+		set_wq_bw($wq, "40M");
+		print "\n".localtime()." :: Bandwidth set to 40 MBps.\n";
+	}elsif ($submitted_tasks > 3 && $submitted_tasks <= 5) {
+		set_wq_bw($wq, "10M");
+		print "\n".localtime()." :: Bandwidth set to 10 MBps.\n";
+	}else { #($submitted_tasks > 10 && $submitted_tasks <= 15) {
+		set_wq_bw($wq, "100M");
+		print "\n".localtime()." :: Bandwidth set to 100 MBps.\n";
+	}
+		
+	return;
+}
+
+
 sub get_wkdir {
 	my $wkdir = cwd();
 	$wkdir .= "/";
@@ -634,10 +665,8 @@ sub submit_task {
 		$query_seqs .= "$tier_num "; 
 	}
 	
-	print localtime()." :: Creating WQ task for query sequence(s) $query_seqs\n";  
 	my $task = work_queue::work_queue_task_create("$task_command $query_seqs"); 
 	my $task_tag = "$start_tier" . "-" . ($start_tier+$tiers_in_task-1);
-	print localtime()." :: Assigning tag $task_tag to task created for query sequence(s) $query_seqs\n";  
 	work_queue::work_queue_task_specify_tag($task, $task_tag); 
 	
 	work_queue::work_queue_task_specify_file($task, "task_env_setup.sh", "task_env_setup.sh", 0, 1);
