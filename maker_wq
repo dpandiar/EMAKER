@@ -426,7 +426,64 @@ sub main {
 	($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tier, $tiers_to_annotate, $workers_used);	
 	print localtime()." :: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
 	
+	my $tasks_submitted = 0;
+	if(defined $OPT{"adapt_to_bw"}){
+		my $tasks_to_submit = 1;
+		if($sample_env) {
+			$tasks_to_submit = $sample_tasks + 1; #one more than the sampling task
+		}	
+		my $tasks_retrieved = 0;
+	
+		my $workers_to_setup = $optimal_tasks_to_submit; #setup number of workers equivalent to the optimal tasks to submit.
+		my $workers_setup = 1; #include the worker setup from sampling 
+		
+		while ($workers_setup < $workers_to_setup) { 	
+			if(defined($OPT{"tcc"})) {
+				tcc_adaptation_setup($wq, $tasks_submitted);
+			}	
+			
+			$partition_time_start = time;
+			$tiers_annotated = submit_annotation_tasks($wq, $start_tier, $tiers_to_annotate, $optimal_tasks, $tasks_to_submit);
+			$actual_partition_time += time - $partition_time_start;
+			
+			$start_tier += $tiers_annotated;
+			$total_tiers_annotated += $tiers_annotated;
+			$tiers_to_annotate = $total_tiers - $total_tiers_annotated;
+			
+			$tasks_submitted += $tasks_to_submit;
+			$workers_setup++;
+		
+			$tasks_to_submit = 1;
+		
+			my $busy_workers = 0;
+			while($busy_workers < ($tasks_submitted-$tasks_retrieved)) {
+				my ($execution_time, $transfer_bytes, $transfer_time) = call_wq_wait($wq, 1);	
+				if ($execution_time > 0 || $transfer_bytes > 0 || $transfer_time > 0) {
+					$tasks_retrieved++;	
+					$tasks_to_submit++;	
+					print localtime()." :: Tasks to submit set to $tasks_to_submit\n";
+				}	
+				$busy_workers = get_busy_workers($wq);
+				print localtime()." :: Busy workers: $busy_workers, tasks submitted: $tasks_submitted, tasks retreived: $tasks_retrieved\n";
+			}
+
+			$bandwidth_bytes_per_sec = measure_bw($wq);
+			print localtime()." :: Measured bandwidth at WQ is $bandwidth_bytes_per_sec\n";
+
+			($optimal_tasks, $optimal_tasks_to_submit) = compute_submission_params($start_tier, $tiers_to_annotate, $workers_used);	
+			$workers_to_setup = $optimal_tasks_to_submit;	
+			print localtime()." :: During initial submissions: Optimal number of tasks for annotating $tiers_to_annotate tiers is $optimal_tasks in batches of $optimal_tasks_to_submit\n";
+		}	
+		process_completed_tasks($wq, ($tasks_submitted-$tasks_retrieved), 5);	
+		$workers_used = $workers_setup;
+	}
+		
+	print localtime()." :: Number of workers setup with data is $workers_used\n";
+	
 	while($total_tiers_annotated < $total_tiers) {
+		if(defined($OPT{"tcc"})) {
+			tcc_adaptation_setup($wq, $tasks_submitted);
+		}	
 		print localtime()." :: $optimal_tasks tasks remain. Submitting $optimal_tasks_to_submit tasks.\n";
 		
 		$partition_time_start = time;
@@ -439,6 +496,7 @@ sub main {
 		$start_tier += $tiers_annotated;
 		$total_tiers_annotated += $tiers_annotated;
 		$tiers_to_annotate = $total_tiers - $total_tiers_annotated;
+		$tasks_submitted += $optimal_tasks_to_submit;
 	
 		process_completed_tasks($wq, $optimal_tasks_to_submit, 5);	
 		
@@ -681,7 +739,7 @@ sub submit_task {
 	}	
 	
 	my $taskid = work_queue::work_queue_submit($wq, $task);
-	print localtime()." :: Submitted task $taskid with command: $task_command for query seq: $query_seqs\n";
+	print localtime()." :: Submitted task $taskid for annotating $tiers_in_task tiers with command: $task_command $query_seqs\n";
 
 	return 1;
 }
@@ -952,15 +1010,31 @@ sub remove_tier_files {
 	unlink "*.tier";
 }
 
-sub process_completed_tasks {
-	my($wq, $tasks_to_retrieve, $timeout) = @_;
+sub get_busy_workers {
+	my($wq) = @_;
 
-	my $task_execution_times = 0;
-	my $total_transfered_bytes= 0;
-	my $total_transfer_time = 0;
+	my $wq_stats = work_queue::work_queue_stats->new();
+	work_queue_get_stats($wq, $wq_stats);
+	return $wq_stats->{workers_busy};	
+}
 
-	#somewhere MAKER launches "maintain.pl" which becomes a zombie script, it needs to be reaped before WQ wait. 
-	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+sub set_wq_bw {
+	my ($wq, $bw) = @_;
+	work_queue::work_queue_set_bandwidth($wq, $bw);
+}
+
+sub measure_bw {
+	my($wq) = @_;
+	my $wq_bw = work_queue::work_queue_get_bandwidth($wq); #return value is in MB/s.
+	return $wq_bw*1024*1024; #return in bytes per second.
+}
+
+sub call_wq_wait {
+	my($wq, $timeout) = @_;
+
+	my $task_execution_time = 0;
+	my $transfered_bytes= 0;
+	my $transfer_time = 0;
 
 	my $tasktimes_fh;
 	if(defined($OPT{"tasktimes_file"})) {
@@ -972,81 +1046,98 @@ sub process_completed_tasks {
 	if(defined($OPT{"taskoverheads_file"})) {
 		my $taskoverheads_file = $OPT{"taskoverheads_file"}; 
 		open $taskoverheads_fh, ">>$taskoverheads_file"; 
-	}	
+	}
+		
+	my $t = work_queue::work_queue_wait($wq, $timeout); 
+	if(defined($t)) {
+		my $tasktag = $t->{tag}; 
 
+		$transfer_time = $t->{total_transfer_time};
+		$transfered_bytes = $t->{total_bytes_transferred};
+		$task_execution_time = $t->{cmd_execution_time}/1000000;
+		
+		if(defined($OPT{"tasktimes_file"})) {
+			my $taskid = $t->{taskid};
+			my $cmd_execution_time = $t->{cmd_execution_time};
+			print $tasktimes_fh "$taskid $cmd_execution_time\n";	
+		}
+		
+		if(defined($OPT{"taskoverheads_file"})) {
+			my $taskid = $t->{taskid};
+			my $input_start = $t->{time_send_input_start};
+			my $input_end = $t->{time_send_input_finish};
+			my $exec_start = $t->{time_execute_cmd_start};
+			my $exec_end = $t->{time_execute_cmd_finish};
+			my $result_start = $t->{time_receive_result_start};
+			my $result_end = $t->{time_receive_result_finish};
+			my $output_start = $t->{time_receive_output_start};
+			my $output_end = $t->{time_receive_output_finish};
+			print $taskoverheads_fh "$taskid $input_start $input_end $exec_start $exec_end $result_start $result_end $output_start $output_end\n";	
+		}
+		
+		#Check if return status indicates failure
+		my $output = $t->{output};
+		open (task_outfile, '>>task_outputs.txt'); 
+		print task_outfile "$output\n";
+		print task_outfile "=================================\n\n";
+		close (task_outfile);
+		
+		my $retStatus = index($output, "EXIT:");
+		if ($retStatus != -1) {
+			$retStatus = substr($output, $retStatus+5, 2);
+			$retStatus = sprintf("%d", $retStatus);
+		}
+		if($retStatus == 0 || $retStatus == 1) {
+			print localtime()." :: Finished WQ task for tiers $tasktag.\n";
+			work_queue::work_queue_task_delete($t);
+		} else { #tier resubmission on failure 
+			$task_failures{$tasktag} += 1; 
+			if($task_failures{$tasktag} <= $tolerable_task_failures){
+				print localtime()." :: Failed, resubmitting WQ task for tiers $tasktag\n";
+				work_queue::work_queue_submit($wq, $t);
+			} else{
+				print localtime()." :: Giving up on task for tiers $tasktag since it has failed $tolerable_task_failures times\n"; 
+				work_queue::work_queue_task_delete($t);
+			}
+		}
+		if(defined($OPT{"tasktimes_file"})) {
+			close $tasktimes_fh;
+		}	
+		if(defined($OPT{"taskoverheads_file"})) {
+			close $taskoverheads_fh;
+		}		
+	}		
+	return ($task_execution_time, $transfered_bytes, $transfer_time);
+}
+
+sub process_completed_tasks {
+	my($wq, $tasks_to_retrieve, $timeout) = @_;
+	
+	#somewhere MAKER launches "maintain.pl" which becomes a zombie script, it needs to be reaped before WQ wait. 
+	Proc::Signal::reap_children_by_name(9, 'maintain.pl');
+
+	my $total_task_execution_times = 0;
+	my $total_transfered_bytes= 0;
+	my $total_transfer_time = 0;
+	
 	my $retrieved_tasks = 0;
 	while ($retrieved_tasks < $tasks_to_retrieve) {
-		my $t = work_queue::work_queue_wait($wq, $timeout); 
-		if(defined($t)) {
+		my ($task_execution_time, $transfered_bytes, $transfer_time) = call_wq_wait($wq, $timeout); 
+		if($task_execution_time > 0 || $transfered_bytes > 0 || $transfer_time > 0) {
 			$retrieved_tasks++;
-			my $tasktag = $t->{tag}; 
-
-			$total_transfer_time += $t->{total_transfer_time};
-			$total_transfered_bytes += $t->{total_bytes_transferred};
-			$task_execution_times += $t->{cmd_execution_time}/1000000;
-			
-			if(defined($OPT{"tasktimes_file"})) {
-				my $taskid = $t->{taskid};
-				my $cmd_execution_time = $t->{cmd_execution_time};
-				print $tasktimes_fh "$taskid $cmd_execution_time\n";	
-			}
-			
-			if(defined($OPT{"taskoverheads_file"})) {
-				my $taskid = $t->{taskid};
-				my $input_start = $t->{time_send_input_start};
-				my $input_end = $t->{time_send_input_finish};
-				my $exec_start = $t->{time_execute_cmd_start};
-				my $exec_end = $t->{time_execute_cmd_finish};
-				my $result_start = $t->{time_receive_result_start};
-				my $result_end = $t->{time_receive_result_finish};
-				my $output_start = $t->{time_receive_output_start};
-				my $output_end = $t->{time_receive_output_finish};
-				print $taskoverheads_fh "$taskid $input_start $input_end $exec_start $exec_end $result_start $result_end $output_start $output_end\n";	
-			}
-			
-			#Check if return status indicates failure
-			my $output = $t->{output};
-			open (task_outfile, '>>task_outputs.txt'); 
-			print task_outfile "$output\n";
-			print task_outfile "=================================\n\n";
-			close (task_outfile);
-			
-			my $retStatus = index($output, "EXIT:");
-			if ($retStatus != -1) {
-				$retStatus = substr($output, $retStatus+5, 2);
-				$retStatus = sprintf("%d", $retStatus);
-			}
-			if($retStatus == 0 || $retStatus == 1) {
-				print localtime()." :: Finished WQ task for tiers $tasktag.\n";
-				work_queue::work_queue_task_delete($t);
-			} else { #tier resubmission on failure 
-				$task_failures{$tasktag} += 1; 
-				if($task_failures{$tasktag} <= 3){
-					print localtime()." :: Failed, resubmitting WQ task for tiers $tasktag\n";
-					work_queue::work_queue_submit($wq, $t);
-				} else{
-					print localtime()." :: WQ task for tiers $tasktag has failed too many times\n"; 
-					work_queue::work_queue_task_delete($t);
-				}
-			}
-		} 
+			$total_task_execution_times += $task_execution_time;
+			$total_transfered_bytes += $transfered_bytes;
+			$total_transfer_time += $transfer_time;
+			print localtime()." :: Retrieved $retrieved_tasks so far.\n";
+		}	
 	}	
 	
-	if($run_timing_code == 1) {
-		$bandwidth_bytes_per_sec = $total_transfered_bytes / ($total_transfer_time / 1000000);
-		print localtime()." :: Measured bandwidth is $bandwidth_bytes_per_sec.\n";
-	}
+	$bandwidth_bytes_per_sec = $total_transfered_bytes / ($total_transfer_time / 1000000);
+	print localtime()." :: Measured bandwidth at application is $bandwidth_bytes_per_sec.\n";
 	
 	$actual_transfer_time += $total_transfer_time;
-
-	if(defined($OPT{"tasktimes_file"})) {
-		close $tasktimes_fh;
-	}	
-	if(defined($OPT{"taskoverheads_file"})) {
-		close $taskoverheads_fh;
-	}	
 	
-	return $task_execution_times;
+	return $total_task_execution_times;
 }
 
 sub get_sw_depedency_size {
