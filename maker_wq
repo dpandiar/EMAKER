@@ -13,9 +13,9 @@ my $start_time = time;
 my $actual_transfer_time = 0;
 
 #Default values for model
-my $partition_overhead_coeff_a = 0.001;
-my $partition_overhead_coeff_b = 0.1;
-my $per_byte_annotate_time = 0.001;	
+my $partition_overhead_coeff_a = 0.0001;
+my $partition_overhead_coeff_b = 0.0005;
+my $per_byte_annotate_time = 0.00444; #0.003;	
 my $bandwidth_bytes_per_sec = 100*1000000; #100MBps
 
 my $run_timing_code = 0;
