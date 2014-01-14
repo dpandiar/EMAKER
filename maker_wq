@@ -375,7 +375,7 @@ sub main {
 
 	if(defined($OPT{"show_estimates"})) {
 		for(my $i = 1; $i <= $tasks; $i++) {
-			my($runtime, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($i, $i, 0, $total_tiers);
+			my($runtime, $partition_time, $parallel_time, $transfer_time) = estimate_runtime($i, 0, $i, 0, $total_tiers);
 			print "$i $runtime $partition_time $parallel_time $transfer_time\n";
 		}	
 		exit(0);	
