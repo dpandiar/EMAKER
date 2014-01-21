@@ -17,6 +17,7 @@ my $partition_overhead_coeff_a = 0.0001;
 my $partition_overhead_coeff_b = 0.0005;
 my $per_byte_annotate_time = 0.003; #0.00444	
 my $bandwidth_bytes_per_sec = 10*1000000; #10MBps
+my $observed_memory_gb = 3.5; #in gb; corresponds to medium instance in EC2/Azure
 
 my $tolerable_task_failures = 1;
 
@@ -417,6 +418,7 @@ sub main {
 		my $total_task_execution_time = process_completed_tasks($wq, $sample_tasks, 5);	
 		$per_byte_annotate_time = $total_task_execution_time/get_contigs_size(0, $sample_size);
 		print localtime()." :: Measured per byte annotation time is $per_byte_annotate_time.\n";
+		$observed_memory_gb = get_observed_min_memory($wq);
 		$run_timing_code = 0;
 	}
 
@@ -610,6 +612,14 @@ sub compute_submission_params {
 		} else {
 			($optimal_tasks, $optimal_tasks_to_submit) = get_optimal_tasks($start_tier, $tiers_to_annotate, $workers_used, 0);
 		}
+
+		my $memory_limited_task_size = get_memory_limited_task_size($start_tier, $tiers_to_annotate);
+		if ($memory_limited_task_size > $optimal_tasks) {
+			print localtime()." :: Optimal tasks ($optimal_tasks) is increased to $memory_limited_task_size due to the observed memory size.\n";
+			$optimal_tasks = $memory_limited_task_size;	
+			$optimal_tasks_to_submit = get_optimal_tasks_to_submit($optimal_tasks, $start_tier, $tiers_to_annotate, $workers_used);
+		}
+
 	} else {
 		if(!defined $OPT{"worker_equivalence"}){
 			$optimal_tasks = $tasks;	
@@ -1010,6 +1020,14 @@ sub remove_tier_files {
 	unlink "*.tier";
 }
 
+sub get_observed_min_memory {
+	my($wq) = @_;
+
+	my $wq_stats = work_queue::work_queue_stats->new();
+	work_queue_get_stats($wq, $wq_stats);
+	return ($wq_stats->{min_memory}/1000); #return in GB.	
+}
+
 sub get_busy_workers {
 	my($wq) = @_;
 
@@ -1249,6 +1267,15 @@ sub get_contigs_size {
 		$contigs_size += -s "$i\_todo.tier";
 	}
 	return $contigs_size;
+}
+
+sub get_memory_limited_task_size {
+	my ($start_tier, $num_tiers) = @_;
+
+	my $observed_memory_mb = $observed_memory_gb * 1000;
+	my $input_size = get_contigs_size($start_tier, $num_tiers)/1000000; 
+	
+	return ceil($input_size/$observed_memory_mb);
 }
 
 sub estimate_runtime {
