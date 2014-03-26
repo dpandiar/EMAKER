@@ -320,6 +320,7 @@ sub main {
 		exit(0);	
 	}
 
+	create_worker_prog();
 	create_task_setup_script();
 
 	###Begin WorkQueue section
@@ -565,6 +566,77 @@ sub compute_submission_params {
 	return ($optimal_tasks, $optimal_tasks_to_submit);	
 }
 
+sub create_worker_prog {
+	my $worker_prog_name = "maker_wq_worker";	
+	open (my $file_h, ">", $worker_prog_name); 
+
+	print $file_h <<'END';
+#!/usr/bin/env perl
+use strict "vars";
+use strict "refs";
+use warnings;
+
+use FindBin;
+use vars qw($RANK $LOG);
+
+BEGIN{
+   if (not ($ENV{CGL_SO_SOURCE})) {
+      $ENV{CGL_SO_SOURCE} = "$FindBin::Bin/../lib/CGL/so.obo";
+   }
+   if (not ($ENV{CGL_GO_SOURCE})) {
+      $ENV{CGL_GO_SOURCE} = "$FindBin::Bin/../lib/CGL/gene_ontology.obo"
+   }
+}
+
+my $link_output = `find -name "*" -exec ln -s {} . \\\;`;
+
+my $numArgs = $#ARGV + 1;
+if ($numArgs < 1) {
+        print "Usage: maker_wq_worker counter\n";
+        exit;
+}
+
+my $counter = $ARGV[0];
+my $tier;
+
+use lib "./lib"; 
+use Storable qw(retrieve);
+use ds_utility;
+use runlog;
+use Error qw(:try);
+use Error::Simple;
+use Process::MpiTiers;
+use Proc::Signal;
+
+my @ts = @ARGV; 
+foreach my $c (@ts) {
+	my $inFile = $c."_todo.tier";
+	my $total = scalar(@ts); 
+	print "On component $c of $#ts, $total, $counter\n"; 
+
+	#tier files were generated with the nstore command from the Storable Perl module
+	#This simply stores a hash to disk in a convenient format. 
+	$tier = ${retrieve($inFile)};
+	$tier->CTL_OPT->{out_name} = "."; 
+	$tier->CTL_OPT->{out_base} = "."; 
+	$tier->CTL_OPT->{the_void} = ".";
+	$tier->{the_void} = ".";  
+
+	#use Process::MpiTiers;
+	print time." :: Worker $counter :: starting \n";
+	$tier->run_all;
+	print time." :: Worker $counter :: finished \n";
+
+	if($tier->failed) { print "EXIT:-1 \n"; last; }
+	elsif($tier->terminated) { print "EXIT:1 \n"; next; }
+}
+END
+		
+	close ($file_h);
+	chmod 0755, $worker_prog_name;
+	return;
+}
+
 sub create_task_setup_script {
 	my $task_setup_script = "task_env_setup.sh";	
 	open (my $file_h, ">", $task_setup_script); 
@@ -692,7 +764,7 @@ sub submit_task {
 
 sub submit_env_files{
 	my ($task) = @_;
-	work_queue::work_queue_task_specify_file($task, "$FindBin::Bin/maker_wq_worker", "maker_wq_worker", 0, 1);
+	work_queue::work_queue_task_specify_file($task, "maker_wq_worker", "maker_wq_worker", 0, 1);
 	
 	#specify the MAKER library files 
 	my $lib = "$FindBin::Bin";
@@ -1101,7 +1173,7 @@ sub get_sw_depedency_size {
 
 	my $sw_dependency_size = 0;
 	
-	$sw_dependency_size += -s "$FindBin::Bin/maker_wq_worker";
+	$sw_dependency_size += -s "maker_wq_worker";
 	
 	my $lib = "$FindBin::Bin";
 	$lib =~ s/bin/lib/; 
