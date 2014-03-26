@@ -771,7 +771,7 @@ sub submit_env_files{
 	$lib =~ s/bin/lib/; 
 	if(! -e "$wkdir/lib.tar") {
 		`tar -C $lib/.. -cf $wkdir/lib.tar lib/`;	
-		`tar -C $wkdir/perl_libs_install -rf $wkdir/lib.tar lib/`;	
+		`tar -C $lib/../perl -rf $wkdir/lib.tar lib/`;	
 	}
 	work_queue::work_queue_task_specify_file($task, "lib.tar", "lib.tar", 0, 1);
 }
@@ -1179,7 +1179,7 @@ sub get_sw_depedency_size {
 	$lib =~ s/bin/lib/; 
 	if(! -e "$wkdir/lib.tar") {
 		`tar -C $lib/.. -cf $wkdir/lib.tar lib/`;	
-		`tar -C $wkdir/perl_libs_install -rf $wkdir/lib.tar lib/`;	
+		`tar -C $lib/../perl -rf $wkdir/lib.tar lib/`;	
 	}
 	my $lib_size = -s "$wkdir/lib.tar";  
 	$sw_dependency_size += $lib_size;
