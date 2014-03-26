@@ -551,6 +551,7 @@ sub compute_submission_params {
 		}
 
 		my $memory_limited_task_size = get_memory_limited_task_size($start_tier, $tiers_to_annotate);
+		print localtime()." :: Memory limited task size is $memory_limited_task_size.\n";
 		if ($memory_limited_task_size > $optimal_tasks) {
 			print localtime()." :: Optimal tasks ($optimal_tasks) is increased to $memory_limited_task_size due to the observed memory size.\n";
 			$optimal_tasks = $memory_limited_task_size;	
@@ -1114,7 +1115,8 @@ sub call_wq_wait {
 			$retStatus = sprintf("%d", $retStatus);
 		}
 		if($retStatus == 0 || $retStatus == 1) {
-			print localtime()." :: Finished WQ task for tiers $tasktag.\n";
+			my $task_result = $t->{result}; 	
+			print localtime()." :: Finished WQ task for tiers $tasktag with result $task_result.\n";
 			work_queue::work_queue_task_delete($t);
 		} else { #tier resubmission on failure 
 			$task_failures{$tasktag} += 1; 
@@ -1282,6 +1284,8 @@ sub get_memory_limited_task_size {
 
 	my $observed_memory_mb = $observed_memory_gb * 1000;
 	my $input_size = get_contigs_size($start_tier, $num_tiers)/1000000; 
+	
+	print localtime()." :: Input size is $input_size MB and observed memory is $observed_memory_mb MB.\n";
 	
 	return ceil($input_size/$observed_memory_mb);
 }
