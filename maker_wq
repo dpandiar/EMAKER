@@ -8,9 +8,8 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../perl/lib";
 
+#Record starting time.
 my $start_time = time; 
-
-my $actual_transfer_time = 0;
 
 #Default values for model
 my $partition_overhead_coeff_a = 0.0001;
@@ -19,29 +18,39 @@ my $per_byte_annotate_time = 0.003; #0.00444
 my $bandwidth_bytes_per_sec = 10*1000000; #10MBps
 my $observed_memory_gb = 3.5; #in gb; corresponds to medium instance in EC2/Azure
 
-my $tolerable_task_failures = 1;
-
+#Variables that control behavior
 my $run_timing_code = 0;
-
 my $sample_env = 0;
 my $sample_tasks = 1;
+my $estimate_granularity = 1;
+my $tolerable_task_failures = 1;
 
+#Counters
 my $resources = 0;
 my $tasks = 0;
-	
-my $common_dependency_size = 0; 
-
 my $total_tiers = 0;
+
 my %task_failures; 
 
-my $estimate_granularity = 1;
+my $actual_transfer_time = 0;
+
+my $common_dependency_size = 0; 
+
+#Global variables
+my %CTL_OPT;
+my $DS_CTL;
+my $GFF_DB;
+my $build;
+my $iterator;
+my $wkdir = get_wkdir();
+
 
 BEGIN{
    if (not ($ENV{CGL_SO_SOURCE})) {
       $ENV{CGL_SO_SOURCE} = "$FindBin::Bin/../lib/CGL/so.obo";
    }
    if (not ($ENV{CGL_GO_SOURCE})) {
-      $ENV{CGL_GO_SOURCE} = "$FindBin::Bin/../lib/CGL/gene_ontology.obo"
+      $ENV{CGL_GO_SOURCE} = "$FindBin::Bin/../lib/CGL/gene_ontology.obo";
    }
    
    #what to do on ^C
@@ -59,23 +68,6 @@ BEGIN{
    };
 }
 
-use Cwd;
-use Cwd qw(abs_path); 
-use Getopt::Long qw(:config no_ignore_case);
-use Iterator::Any;
-use Error qw(:try);
-use Error::Simple;
-use Storable qw(nstore retrieve);
-use work_queue;
-use POSIX qw(ceil floor);
-#external libraries below.
-use Proc::Signal;
-use GI;
-use Fasta;
-use ds_utility;
-use GFFDB;
-use Process::MpiChunk;
-use Process::MpiTiers;
 
 $| = 1; #turn on autoflush.
 
@@ -179,7 +171,25 @@ Work Queue Options
      -tcc                  Setup TCC configuration for bandwidth adaptations.
 ";
 
-#------------------------------------ MAIN -------------------------------------
+#load required libraries
+use Cwd;
+use Cwd qw(abs_path); 
+use Getopt::Long qw(:config no_ignore_case);
+use Iterator::Any;
+use Error qw(:try);
+use Error::Simple;
+use Storable qw(nstore retrieve);
+use work_queue;
+use POSIX qw(ceil floor);
+
+#external libraries
+use Proc::Signal;
+use GI;
+use Fasta;
+use ds_utility;
+use GFFDB;
+use Process::MpiChunk;
+use Process::MpiTiers;
 
 #---Process options on the command line 
 my %OPT;
@@ -233,14 +243,6 @@ if(!defined($OPT{"genome"})) {
 	print "Please specify the genome file that you want to annotate and run again!\n";
 	exit (0);
 }
-
-#global variables 
-my %CTL_OPT;
-my $DS_CTL;
-my $GFF_DB;
-my $build;
-my $iterator;
-my $wkdir = get_wkdir();
 my $contigs_file = $OPT{genome};
 
 try{
@@ -323,8 +325,11 @@ if(!-e $datastore) {
 	`mkdir $datastore`;
 }
 
-#Main loop here
+#Call main loop here
 main(); 
+
+
+#------------------------------- FUNCTION DEFINITIONS -------------------------------------
 
 sub main {
 	if(defined $OPT{"reuse_tiers"}){
@@ -528,7 +533,6 @@ sub main {
 	exit(0);
 }
 
-#------------------------------- FUNCTION DEFINITIONS -------------------------------------
 sub tcc_adaptation_setup {
 	my($wq, $submitted_tasks) = @_;
 
@@ -550,7 +554,6 @@ sub tcc_adaptation_setup {
 		
 	return;
 }
-
 
 sub get_wkdir {
 	my $wkdir = cwd();
