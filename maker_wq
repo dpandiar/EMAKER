@@ -52,22 +52,9 @@ BEGIN{
    if (not ($ENV{CGL_GO_SOURCE})) {
       $ENV{CGL_GO_SOURCE} = "$FindBin::Bin/../lib/CGL/gene_ontology.obo";
    }
-   
-   #what to do on ^C
-   $SIG{'INT'} = sub {
-      print STDERR "\n\nMaker aborted by user!\n\n";
-      exit (1);
-   };    
-   
-   #supress warnings from storable module
-   $SIG{'__WARN__'} = sub {
-      warn $_[0] if ( $_[0] !~ /Not a CODE reference/ &&
-		      $_[0] !~ /Can\'t store item / &&
-		      $_[0] !~ /Find\:\:skip_pattern|File\/Find\.pm/
-		    );
-   };
-}
 
+   $SIG{'INT'} = sub { die "Maker terminated by user.\n" };
+}
 
 $| = 1; #turn on autoflush.
 
