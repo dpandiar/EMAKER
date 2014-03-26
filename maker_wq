@@ -58,64 +58,10 @@ BEGIN{
 
 $| = 1; #turn on autoflush.
 
-my $usage = "
-Usage:
-	 maker_wq [options] <maker_opts> <maker_bopts> <maker_exe>
-     
-Maker Options:
+my $maker_help = `maker -h`;
 
-     -genome|g <filename> Specify the genome file.
-     
-	 -est|E <filename>    Specify the EST file.
-	 
-     -estr|S <filename>   Specify the EST reads file.
-     
-	 -protein|P <filename> Specify the Protein file.
-	 
-	 -snaphmm|H <filename> Specify the Snap HMM file.
-
-     -predictor|p <type>  Selects the predictor(s) to use when building
-                          annotations.  Defines a pool of gene models for
-                          annotation selection.
-                          types: snap
-                                 augustus
-                                 fgenesh
-                                 genemark
-                                 est2genome (Uses EST's directly)
-                                 protein2genome (For Prokaryotic annotation only)
-                                 model_gff (Pass through GFF3 annotations)
-                                 pred_gff (Uses passed through GFF3 predictions)
-
-                          Use a ',' to seperate types (nospaces)
-                          i.e. -predictor=snap,augustus,fgenesh
-
-     -RM_off|R           Turns all repeat masking off.
-
-     -datastore/         Forcably turn on/off MAKER's use of a two deep datastore
-      nodatastore        directory structure for output.  By default this option
-                         turns on whenever there are more the 1,000 contigs in
-                         the input genome fasta file.
-
-     -base    <string>   Set the base name MAKER uses to save output files.
-                         MAKER uses the input genome file name by default.
-
-     -retry|r <integer>  Rerun failed contigs up to the specified count.
-
-     -cpus|c  <integer>  Tells how many cpus to use for BLAST analysis.
-
-     -force|f            Forces maker to delete old files before running again.
-                         This will require all blast analyses to be re-run.
-
-     -again|a            Caculate all annotations and output files again even if
-                         no settings have changed. Does not delete old analyses.
-
-     -evaluate|e         Run Evaluator on final annotations (under development).
-
-     -CTL                Generate empty control files in the current directory.
-
-     -help|?             Prints this usage statement.
-
-Work Queue Options
+my $usage = "$maker_help
+Work Queue Options:
 
      -port <int>           Sets the port for work_queue to listen on (default: 9135)
  
@@ -197,7 +143,6 @@ try{
 	       "base=s" =>\$OPT{out_name},
 	       "datastore!" =>\$OPT{datastore},
 	       "CTL" => sub {GI::generate_control_files(); exit(0);},
-	       "help|?" => sub {print $usage; exit(0)},
 	       "port=i" => \$OPT{port},
 	       "fa=i" => \$OPT{fast_abort},
 	       "N=s" => \$OPT{project},
@@ -217,13 +162,14 @@ try{
  	       "adapttobw" => \$OPT{adapt_to_bw},
  	       "tcc" => \$OPT{tcc},
  	       "tasktimes=s" => \$OPT{tasktimes_file},
- 	       "taskoverheads=s" => \$OPT{taskoverheads_file}
+ 	       "taskoverheads=s" => \$OPT{taskoverheads_file},
+	       "help|?" => sub {print $usage; exit(0)}
 	       );
 
 } catch Error::Simple with{
     my $E = shift;
     print STDERR $E->{-text};
-    die "\n\nMaker failed parsing command line options!\n" if();
+    die "Failed to parse command line options.\n";
 };
 
 if(!defined($OPT{"genome"})) {
